@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  console.log('chat proxy invoked, has_key:', !!process.env.ANTHROPIC_API_KEY, 'len:', (process.env.ANTHROPIC_API_KEY || '').length);
+  console.log('chat proxy invoked, has_key:', !!process.env.ANTHROPIC_API_KEY, 'method:', req.method);
 
   if (req.method === 'GET' && req.query?.debug === '1') {
     const k = process.env.ANTHROPIC_API_KEY || '';
@@ -24,13 +24,12 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Vercel parses JSON bodies automatically when content-type matches, but a
-  // bare browser fetch() sometimes lands here as a raw string. Handle both.
   let body = req.body;
   if (typeof body === 'string') {
     try { body = JSON.parse(body); } catch { body = {}; }
   }
   body = body ?? {};
+  console.log('chat proxy: model:', body.model, 'max_tokens:', body.max_tokens, 'msg_count:', body.messages?.length);
 
   try {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -43,15 +42,14 @@ export default async function handler(req, res) {
       body: JSON.stringify(body),
     });
 
-    const data = await upstream.json();
+    const rawText = await upstream.text();
+    console.log('chat proxy upstream status:', upstream.status, 'body preview:', rawText.slice(0, 800));
 
-    if (!upstream.ok) {
-      console.error('chat proxy upstream error:', upstream.status, data);
-    }
-
-    res.status(upstream.status).json(data);
+    res.status(upstream.status)
+       .setHeader('content-type', 'application/json')
+       .send(rawText);
   } catch (err) {
-    console.error('chat proxy fatal:', err);
-    res.status(502).json({ error: err.message });
+    console.error('chat proxy fatal:', err.message, err.stack);
+    res.status(500).json({ error: 'proxy_fatal', message: err.message, stack: err.stack?.slice(0, 500) });
   }
 }
