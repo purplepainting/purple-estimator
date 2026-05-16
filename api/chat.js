@@ -1,10 +1,16 @@
 export default async function handler(req, res) {
+  console.log('chat proxy invoked, has_key:', !!process.env.ANTHROPIC_API_KEY);
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
   const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    res.status(500).json({ error: 'ANTHROPIC_API_KEY not set on server' });
+    return;
+  }
 
   // Vercel parses JSON bodies automatically when content-type matches, but a
   // bare browser fetch() sometimes lands here as a raw string. Handle both.
@@ -13,13 +19,6 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { body = {}; }
   }
   body = body ?? {};
-
-  console.log(`chat proxy: model=${body.model ?? '<missing>'}, has_key=${!!key}`);
-
-  if (!key) {
-    res.status(500).json({ error: 'ANTHROPIC_API_KEY not set on server' });
-    return;
-  }
 
   try {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
