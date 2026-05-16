@@ -1,14 +1,28 @@
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 
+// Disable Vercel's auto body parser — we read the raw stream ourselves.
+// This avoids the "TypeError: invalid media type" crash when Content-Type
+// headers are duplicated or malformed.
+export const config = {
+  api: { bodyParser: false },
+};
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   // CORS / preflight
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   // Debug endpoint
   if (req.method === 'GET' && req.query?.debug === '1') {
@@ -18,7 +32,7 @@ export default async function handler(req, res) {
       key_length: k.length,
       key_prefix: k.slice(0, 10),
       key_starts_with_sk_ant: k.startsWith('sk-ant-'),
-      runtime: 'node-esm',
+      runtime: 'node-esm-rawbody',
       node_version: process.version,
     });
   }
@@ -32,18 +46,25 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set on server' });
   }
 
-  // Vercel auto-parses JSON bodies for application/json
-  let body = req.body;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch { body = {}; }
+  // Read raw body ourselves — no media-type parsing
+  let rawBody;
+  try {
+    rawBody = await readRawBody(req);
+  } catch (err) {
+    console.error('readRawBody failed:', err.message);
+    return res.status(400).json({ error: 'failed_to_read_body', message: err.message });
   }
-  body = body || {};
 
-  const { model, max_tokens, system, messages } = body;
-
-  if (!model) {
-    return res.status(400).json({ error: 'Missing required field: model' });
+  let body;
+  try {
+    body = JSON.parse(rawBody);
+  } catch (err) {
+    console.error('JSON.parse failed:', err.message, 'preview:', rawBody.slice(0, 200));
+    return res.status(400).json({ error: 'invalid_json', message: err.message });
   }
+
+  const { model, max_tokens, system, messages } = body || {};
+  if (!model) return res.status(400).json({ error: 'Missing required field: model' });
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Missing or empty required field: messages' });
   }
@@ -65,15 +86,11 @@ export default async function handler(req, res) {
         messages,
       }),
     });
-
     const data = await upstream.json();
     console.log('chat proxy upstream status:', upstream.status);
     return res.status(upstream.status).json(data);
   } catch (err) {
-    console.error('chat proxy fetch error:', err.message, err.stack);
-    return res.status(502).json({
-      error: 'proxy_fetch_failed',
-      message: err.message,
-    });
+    console.error('chat proxy fetch error:', err.message);
+    return res.status(502).json({ error: 'proxy_fetch_failed', message: err.message });
   }
 }
