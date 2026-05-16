@@ -1,5 +1,17 @@
 export default async function handler(req, res) {
-  console.log('chat proxy invoked, has_key:', !!process.env.ANTHROPIC_API_KEY);
+  console.log('chat proxy invoked, has_key:', !!process.env.ANTHROPIC_API_KEY, 'len:', (process.env.ANTHROPIC_API_KEY || '').length);
+
+  if (req.method === 'GET' && req.query?.debug === '1') {
+    const k = process.env.ANTHROPIC_API_KEY || '';
+    res.status(200).json({
+      has_anthropic_key: !!k,
+      key_length: k.length,
+      key_prefix: k.slice(0, 10),
+      key_starts_with_sk_ant: k.startsWith('sk-ant-'),
+      env_keys_count: Object.keys(process.env).length,
+    });
+    return;
+  }
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
