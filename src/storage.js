@@ -6,10 +6,7 @@ const SINGLETON_TABLES = {
   tier_multipliers_v1: 'tier_multipliers',
 };
 
-async function currentUserId() {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user?.id ?? null;
-}
+const PUBLIC_USER_ID = 'public-user';
 
 async function getSingleton(table) {
   const { data, error } = await supabase.from(table).select('value').eq('id', 1).maybeSingle();
@@ -26,21 +23,21 @@ async function setSingleton(table, jsonString) {
 }
 
 async function getKv(key) {
-  const uid = await currentUserId();
-  if (!uid) return null;
   const { data, error } = await supabase
-    .from('kv_store').select('value').eq('user_id', uid).eq('key', key).maybeSingle();
+    .from('kv_store')
+    .select('value')
+    .eq('user_id', PUBLIC_USER_ID)
+    .eq('key', key)
+    .maybeSingle();
   if (error) throw error;
   return data ? { value: JSON.stringify(data.value) } : null;
 }
 
 async function setKv(key, jsonString) {
-  const uid = await currentUserId();
-  if (!uid) throw new Error('Not signed in');
   const parsed = JSON.parse(jsonString);
   const { error } = await supabase
     .from('kv_store')
-    .upsert({ user_id: uid, key, value: parsed, updated_at: new Date().toISOString() });
+    .upsert({ user_id: PUBLIC_USER_ID, key, value: parsed, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 

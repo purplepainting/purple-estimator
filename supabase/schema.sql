@@ -64,8 +64,10 @@ create table if not exists chat_messages (
 create index if not exists chat_messages_session_idx on chat_messages(session_id, created_at);
 
 -- Per-user key-value fallback ------------------------------------------
+-- user_id is text (not uuid + FK) so the no-auth testing mode can use the
+-- literal 'public-user' identifier. Re-tighten when auth is added back.
 create table if not exists kv_store (
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   key text not null,
   value jsonb not null,
   updated_at timestamptz not null default now(),
@@ -74,8 +76,8 @@ create table if not exists kv_store (
 
 -- =====================================================================
 -- Row level security
--- Team-wide tables: any authenticated user can read/write.
--- kv_store: per-user only.
+-- Auth gate is DISABLED for testing — every table is open to anon and
+-- authenticated. Tighten before going live with real customer data.
 -- =====================================================================
 
 alter table scope_library      enable row level security;
@@ -87,16 +89,14 @@ alter table chat_sessions      enable row level security;
 alter table chat_messages      enable row level security;
 alter table kv_store           enable row level security;
 
-create policy "team rw scope_library"    on scope_library    for all to authenticated using (true) with check (true);
-create policy "team rw catalog_ids"      on catalog_ids      for all to authenticated using (true) with check (true);
-create policy "team rw tier_multipliers" on tier_multipliers for all to authenticated using (true) with check (true);
-create policy "team rw catalog_items"    on catalog_items    for all to authenticated using (true) with check (true);
-create policy "team rw job_walks"        on job_walks        for all to authenticated using (true) with check (true);
-create policy "team rw chat_sessions"    on chat_sessions    for all to authenticated using (true) with check (true);
-create policy "team rw chat_messages"    on chat_messages    for all to authenticated using (true) with check (true);
-
-create policy "kv self rw" on kv_store
-  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "anon+auth rw scope_library"    on scope_library    for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw catalog_ids"      on catalog_ids      for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw tier_multipliers" on tier_multipliers for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw catalog_items"    on catalog_items    for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw job_walks"        on job_walks        for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw chat_sessions"    on chat_sessions    for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw chat_messages"    on chat_messages    for all to anon, authenticated using (true) with check (true);
+create policy "anon+auth rw kv_store"         on kv_store         for all to anon, authenticated using (true) with check (true);
 
 -- =====================================================================
 -- Seed data
