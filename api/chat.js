@@ -1,6 +1,5 @@
 export const config = {
   maxDuration: 60,
-  runtime: 'nodejs22.x',
 };
 
 export default async function handler(request) {
