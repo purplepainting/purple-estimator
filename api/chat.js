@@ -1,9 +1,6 @@
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 
-// Disable Vercel's auto body parser — we read the raw stream ourselves.
-// This avoids the "TypeError: invalid media type" crash when Content-Type
-// headers are duplicated or malformed.
 export const config = {
   api: { bodyParser: false },
 };
@@ -18,13 +15,11 @@ function readRawBody(req) {
 }
 
 export default async function handler(req, res) {
-  // CORS / preflight
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // Debug endpoint
   if (req.method === 'GET' && req.query?.debug === '1') {
     const k = process.env.ANTHROPIC_API_KEY || '';
     return res.status(200).json({
@@ -46,7 +41,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set on server' });
   }
 
-  // Read raw body ourselves — no media-type parsing
+  // Log what came in so we can SEE what's actually triggering invalid media type
+  console.log('chat proxy: method:', req.method, 'content-type:', req.headers['content-type'], 'content-length:', req.headers['content-length']);
+
   let rawBody;
   try {
     rawBody = await readRawBody(req);
@@ -60,7 +57,7 @@ export default async function handler(req, res) {
     body = JSON.parse(rawBody);
   } catch (err) {
     console.error('JSON.parse failed:', err.message, 'preview:', rawBody.slice(0, 200));
-    return res.status(400).json({ error: 'invalid_json', message: err.message });
+    return res.status(400).json({ error: 'invalid_json', message: err.message, preview: rawBody.slice(0, 200) });
   }
 
   const { model, max_tokens, system, messages } = body || {};
