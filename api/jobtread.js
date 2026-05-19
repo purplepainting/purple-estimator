@@ -251,6 +251,12 @@ export default async function handler(req, res) {
   }
 
   const { action, payload } = body || {};
+  console.log(
+    'jobtread proxy: method=', req.method,
+    'content-type=', req.headers['content-type'],
+    'action=', action,
+    'payload-keys=', payload ? Object.keys(payload) : null,
+  );
   if (!action || typeof action !== 'string') {
     return res.status(400).json({ error: 'missing_action' });
   }

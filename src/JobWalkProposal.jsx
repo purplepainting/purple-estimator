@@ -3443,7 +3443,9 @@ ${JSON.stringify(payload, null, 2)}`;
       const resp = await fetch("/api/jobtread", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(action),
+        // /api/jobtread expects { action: <name>, payload: <object> } — Claude emits
+        // each action as { name, payload }, so rename the key on the way out.
+        body: JSON.stringify({ action: action.name, payload: action.payload }),
       });
       result = await resp.json();
       if (!resp.ok) {
