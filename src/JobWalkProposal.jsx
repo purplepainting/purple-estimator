@@ -1232,6 +1232,7 @@ export default function App() {
   const [categorizing, setCategorizing] = useState(false);
   const [customScope, setCustomScope] = useState({}); // { groupKey: [strings] }
   const [customExclusions, setCustomExclusions] = useState([]);
+  const [buildStarted, setBuildStarted] = useState(false);          // Step 4 — gates the BuildChat panel
 
   // Load library from storage on mount
   useEffect(() => {
@@ -2209,6 +2210,18 @@ Once the above is confirmed, use the JobTread MCP to:
           {/* Step 4: Export (was step 6 before consolidation) */}
           {step === 4 && (
             <div style={card}>
+              {/* Build in JobTread — in-app budget creation via JT API (Phase 1) */}
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Build in JobTread</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Build the budget directly. Talk through any issues that come up.</p>
+              {!buildStarted ? (
+                <button style={btnPrimary} onClick={() => setBuildStarted(true)}>Start Build</button>
+              ) : (
+                <BuildChat payload={buildPayload()} />
+              )}
+
+              <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
+
+              {/* Manual export fallback — unchanged */}
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>Export</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Copy the JSON payload and paste it into a new chat to build the budget and push the proposal to JobTread.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -3227,6 +3240,365 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
             onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
             disabled={thinking}
             placeholder='Say anything — "all walls 2 coats", "remove dining room", "add a closet 6x4"'
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              fontSize: 13,
+              border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))",
+              borderRadius: 6,
+              background: "transparent",
+              color: "inherit",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={thinking || !inputText.trim()}
+            style={{
+              padding: "8px 14px",
+              fontSize: 12,
+              borderRadius: 6,
+              border: "0.5px solid #2C1654",
+              background: inputText.trim() && !thinking ? "#2C1654" : "transparent",
+              color: inputText.trim() && !thinking ? "#fff" : "var(--color-text-secondary, #888)",
+              cursor: thinking || !inputText.trim() ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontWeight: 500,
+            }}
+          >
+            Send
+          </button>
+        </div>
+        {error && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--color-text-danger, #c33)" }}>
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// BuildChat — Phase 1: in-app budget creation via /api/jobtread
+// ============================================================================
+// Mirrors ClarifyChat in UI/structure. Differs in:
+//   - System prompt is the JT build assistant (ID catalogs + build sequence).
+//   - When Claude returns actions, BuildChat calls /api/jobtread for each,
+//     feeds the results back as a hidden user message, and loops up to 8
+//     times per user turn before pausing.
+//   - Maintains an in-memory build context (customerId, jobId, costGroupIds)
+//     that's re-serialized into the system prompt on every API call.
+
+function BuildChat({ payload }) {
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      text: "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.",
+    },
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [error, setError] = useState("");
+  const scrollerRef = useRef(null);
+
+  // Build context — IDs accumulated across the conversation. Lives in a ref so
+  // updates don't force re-renders (the values are read fresh each time the
+  // system prompt is composed).
+  const contextRef = useRef({
+    customerId: null,
+    jobId: null,
+    costGroupIds: {},      // { groupName: id }
+    completed: { rooms: [], scopeBuckets: [], tmItems: [] },
+    errors: [],
+  });
+
+  useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    }
+  }, [messages, thinking]);
+
+  function buildSystemPrompt() {
+    return `You are a JobTread build assistant for Purple Painting Co. Your job is to walk the user through building a budget in JobTread by emitting tool calls (actions) that the app executes on your behalf.
+
+RESPONSE FORMAT
+═══════════════════
+Respond with ONLY a JSON object — no preamble, no markdown fences:
+{
+  "actions": [ { "name": "<actionName>", "payload": {...} }, ... ],
+  "reply": "<message shown to the user>"
+}
+- "actions" may be empty if you're just asking a question or reporting status.
+- Actions execute sequentially in order. Later actions can use IDs from earlier ones (see CURRENT BUILD CONTEXT).
+- To wait on a user answer, return empty actions + the question in "reply".
+- After actions execute, the app sends you their results as a user message prefixed "Tool results:". Read it and continue.
+
+AVAILABLE ACTIONS
+═══════════════════
+1. find_customer        { "query": "<name fragment>" }
+2. get_customer_jobs    { "customerId": "<id>" }
+3. find_job             { "query": "<name|address fragment>" }
+4. create_customer      { "name", "contactName"?, "email"?, "phone"?, "address"?, "leadSource"? }
+5. create_job           { "customerId", "name", "address"?, "tier", "bidOrigin" }
+6. create_cost_group    { "jobId", "name", "parentCostGroupId"?, "quantityFormula"?, "unitId"?, "quantity"? }
+7. create_cost_item     { "jobId", "costGroupId", "organizationCostItemId", "name", "costCodeId", "costTypeId", "unitId", "quantityFormula"?, "quantity"?, "unitCost", "unitPrice" }
+
+IDS YOU'LL NEED
+═══════════════════
+ORG: 22PWNY9u7qZd
+UNITS: SF=22PWNYKLitQU, LF=22PWNYKLfXKr, EA=22PWNYKLcv3n, HR=22PWNYKLfARY
+COST TYPES: Labor=22PWNYKLxD4B, Materials=22PWNYKLxwqk
+CUSTOM FIELDS:
+  Job Type=22PWsEVVW4aj (values: "Residential - Standard Home" | "Residential - Custom House" | "Commercial" | "Prevailing Wage" | "Property Management / Production")
+  How Did Bid Come In=22PWsDkAPRYB (values: "Received Digital Bid Invite" | "Requested Job Walk" | "Partner Work Order")
+  Lead Source (customer)=22PWNYKhTU6S
+  Phone (customerContact)=22PWNYKhWqBE
+  Lead Stage (customerContact)=22PWsFuiWzEq
+
+INTERIOR CATALOG (organizationCostItemId per substrate+coats; "code" is the costCodeId for the substrate):
+  Walls:     { "1coat":22PWT9nDL9HP, "2coats":22PWiSS293E2, "prime+2":22PWiSgjqkaq, code:22PWmcdKrCnn }
+  Ceilings:  { "1coat":22PWickkTi46, "2coats":22PWictZ3V84, "prime+2":22PWicwN2pxL, code:22PWmcdMcqbZ }
+  Baseboard: { "1coat":22PWiYQt5Pq8, "2coats":22PWih8XPvPm,                          code:22PWmcdjtJ9C }
+  Doors:     { "1coat":22PXFmQz3HEd, "2coats":22PXFmRbHAgn, "prime+2":22PXFmSG2zeV, code:22PWmcdpBtSV }
+
+TIER MULTIPLIERS (apply to BOTH unitCost AND unitPrice — margin % preserved):
+  standard=1.00, production=0.85, highend=1.35, prevailing=1.65
+
+CRITICAL JT RULES
+═══════════════════
+1. Cost item catalog link = organizationCostItemId (NOT sourceCostItemId).
+2. Tier multiplier applies to unitCost AND unitPrice. Margin stays constant.
+3. Cost items under a subgroup use quantityFormula: "{Parent Quantity}" (literal, including braces).
+4. Flat creates only: parent → subgroup → item. Never nest lineItems on createCostGroup.
+5. Picklist custom fields can't be empty — only set them when you have a value.
+6. Job Type from tier: standard→"Residential - Standard Home", production→"Property Management / Production", highend→"Residential - Custom House", prevailing→"Prevailing Wage".
+7. How Did Bid Come In: payload.bidOrigin "Job Walk"→"Requested Job Walk", "Digital Takeoff"→"Received Digital Bid Invite", "Partner Work Order"→"Partner Work Order".
+
+BUILD SEQUENCE
+═══════════════════
+Stage A — Resolve customer + job:
+1. Ask user for customer name + job address if you don't have them.
+2. find_customer with the name. If matches, list them and let user pick. If none, ask for full details (contact name, email, phone, address) then create_customer.
+3. If existing customer chosen, get_customer_jobs. If a job already matches, use it. Else create_job.
+4. When creating jobs, always set customFieldValues for Job Type (from payload.tier) and How Did Bid Come In (from payload.bidOrigin).
+
+Stage B — Top-level structure:
+5. Create "Interior" cost group on the job (no parent).
+6. Create "Exterior" cost group on the job (no parent).
+
+Stage C — Rooms (interior):
+For each room in payload.rooms:
+7. Create parent cost group with parentCostGroupId=Interior.id.
+8. For each enabled substrate, create subgroup + cost item:
+   a. Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
+      Quantity formulas (substitute actual dims as numbers):
+        walls: "2 * (<L> + <W>) * <H>"
+        ceiling: "<L> * <W>"
+        baseboard: "2 * (<L> + <W>)"
+        doors: literal doors.count (use "quantity" not "quantityFormula")
+      Unit IDs: walls/ceiling=SF, baseboard=LF, doors=EA.
+   b. Cost item under that subgroup:
+      - organizationCostItemId = catalog entry by substrate+coats
+      - name = "<Substrate label> - Existing - <Coats label>" (e.g. "Drywall Walls - Existing - 2-Coats")
+      - costCodeId = catalog "code" for that substrate
+      - costTypeId = Labor
+      - unitId = matching unit
+      - quantityFormula = "{Parent Quantity}" (literal)
+      - unitCost, unitPrice = catalog defaults × tier multiplier. If you don't know catalog defaults, ASK the user.
+
+Stage D — Scope buckets:
+For each item in payload.scopeBuckets:
+9. parent = Exterior if substrate starts with "exterior_", else Interior.
+10. Create cost group with literal quantity + unitId by item.unit.
+11. Create cost item. If substrate NOT in interior catalog above, ASK user for organizationCostItemId + costCodeId — Phase 1 doesn't auto-look up the catalog.
+
+Stage E — T&M items:
+For each item in payload.tmItems:
+12. payload.tmItems already include catalogId, costCode, unitCost, unitPrice — use directly.
+13. T&M items belong under their cost-code group from payload.tmCatalog (find/create the group as needed). Don't nest under Interior or Exterior.
+
+Stage F — Summary:
+14. After all built, reply with: customer name, job name, # cost groups created, # cost items created, JT link https://app.jobtread.com/jobs/<jobId>.
+
+CURRENT BUILD CONTEXT
+═══════════════════
+${JSON.stringify({
+  customerId: contextRef.current.customerId,
+  jobId: contextRef.current.jobId,
+  costGroupIds: contextRef.current.costGroupIds,
+  completed: contextRef.current.completed,
+  recentErrors: contextRef.current.errors.slice(-3),
+}, null, 2)}
+
+PAYLOAD (what you're building)
+═══════════════════
+${JSON.stringify(payload, null, 2)}`;
+  }
+
+  // Execute one tool action via /api/jobtread, capture result, update context.
+  async function executeAction(action) {
+    let result;
+    try {
+      const resp = await fetch("/api/jobtread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(action),
+      });
+      result = await resp.json();
+      if (!resp.ok) {
+        contextRef.current.errors.push({ action: action.name, status: resp.status, error: result });
+      }
+    } catch (e) {
+      result = { error: "fetch_failed", message: e.message };
+      contextRef.current.errors.push({ action: action.name, error: e.message });
+    }
+
+    // Extract IDs into build context so subsequent actions / system prompts see them.
+    const ctx = contextRef.current;
+    if (action.name === "create_customer") {
+      const id = result?.createAccount?.createdAccount?.id;
+      if (id) ctx.customerId = id;
+    } else if (action.name === "create_job") {
+      const id = result?.createJob?.createdJob?.id;
+      if (id) ctx.jobId = id;
+    } else if (action.name === "create_cost_group") {
+      const id = result?.createCostGroup?.createdCostGroup?.id;
+      const name = result?.createCostGroup?.createdCostGroup?.name || action.payload?.name;
+      if (id && name) ctx.costGroupIds[name] = id;
+    }
+
+    return { action: action.name, payload: action.payload, result };
+  }
+
+  // Call /api/chat with current visible+hidden history + system prompt.
+  // Returns { actions, reply }.
+  async function callClaude(history) {
+    const apiMessages = history
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role, content: m.text }));
+
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        system: buildSystemPrompt(),
+        messages: apiMessages,
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      throw new Error(`/api/chat HTTP ${resp.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.type === "error" || data.error) {
+      throw new Error(data.error?.message || "API error");
+    }
+    const textBlock = data.content?.find((c) => c.type === "text");
+    if (!textBlock) throw new Error("No text in response");
+    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
+    try {
+      const parsed = JSON.parse(cleaned);
+      return {
+        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+        reply: typeof parsed.reply === "string" ? parsed.reply : "",
+      };
+    } catch {
+      // Model returned non-JSON — treat as a pure reply.
+      return { actions: [], reply: cleaned.slice(0, 1000) };
+    }
+  }
+
+  async function sendMessage() {
+    if (!inputText.trim() || thinking) return;
+    const userText = inputText.trim();
+    setInputText("");
+    setError("");
+
+    let history = [...messages, { role: "user", text: userText }];
+    setMessages(history);
+    setThinking(true);
+
+    const MAX_STEPS = 8;
+    try {
+      for (let step = 0; step < MAX_STEPS; step++) {
+        const { actions, reply } = await callClaude(history);
+        const assistantMsg = { role: "assistant", text: reply || "(no message)" };
+        history = [...history, assistantMsg];
+        setMessages(history);
+
+        if (!actions.length) return; // pure reply — back to user
+
+        // Run each action, then feed results back to Claude
+        const results = [];
+        for (const a of actions) {
+          // eslint-disable-next-line no-await-in-loop
+          results.push(await executeAction(a));
+        }
+        const toolMsg = {
+          role: "user",
+          text: `Tool results:\n${JSON.stringify(results, null, 2)}`,
+          _hidden: true,
+        };
+        history = [...history, toolMsg];
+        setMessages(history);
+      }
+      // Hit cap
+      setMessages((prev) => [...prev, { role: "assistant", text: "Hit max steps — pausing. What would you like to do?" }]);
+    } catch (e) {
+      setError(e.message || "Something went wrong");
+      setMessages((prev) => [...prev, { role: "assistant", text: `(Error: ${e.message})` }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return (
+    <div style={{
+      border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+      borderRadius: 8,
+      background: "var(--color-background-primary, #fff)",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      {/* Header */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "8px 12px",
+        background: "var(--color-background-secondary, #f3f3f0)",
+        borderBottom: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+        fontSize: 11,
+        color: "var(--color-text-secondary, #666)",
+      }}>
+        <span>Building in JobTread</span>
+      </div>
+
+      {/* Message log — internal tool-result echoes are filtered out (m._hidden) */}
+      <div ref={scrollerRef} style={{ padding: 12, maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.filter((m) => !m._hidden).map((m, i) => (
+          <ChatBubble key={i} message={m} />
+        ))}
+        {thinking && (
+          <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
+            Thinking…
+          </div>
+        )}
+      </div>
+
+      {/* Input row */}
+      <div style={{ borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", padding: 12 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
+            disabled={thinking}
+            placeholder='e.g. "Customer is Smith Family, job at 123 Oak Street"'
             style={{
               flex: 1,
               padding: "8px 10px",
