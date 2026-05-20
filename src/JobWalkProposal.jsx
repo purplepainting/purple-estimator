@@ -3280,21 +3280,144 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
 }
 
 // ============================================================================
-// BuildChat — Phase 1: in-app budget creation via /api/jobtread
+// BuildChat — Phase 1: in-app budget creation via /api/jobtread (native tool use)
 // ============================================================================
-// Mirrors ClarifyChat in UI/structure. Differs in:
-//   - System prompt is the JT build assistant (ID catalogs + build sequence).
-//   - When Claude returns actions, BuildChat calls /api/jobtread for each,
-//     feeds the results back as a hidden user message, and loops up to 8
-//     times per user turn before pausing.
-//   - Maintains an in-memory build context (customerId, jobId, costGroupIds)
-//     that's re-serialized into the system prompt on every API call.
+// Switched from a brittle JSON-action protocol to Anthropic's native tool use.
+// Each user turn runs an internal loop: call /api/chat with messages + tools →
+// if stop_reason === "tool_use", dispatch each tool_use block to /api/jobtread,
+// return the results as tool_result content blocks, loop up to 8 times. When
+// stop_reason === "end_turn", control returns to the user. Tools mirror the
+// api/jobtread.js executors 1:1 (find_customer, create_job, …). A small build
+// context (customerId, jobId, costGroupIds) is still tracked in a ref and
+// serialized into the system prompt as a status summary.
+
+const BUILD_CHAT_TOOLS = [
+  {
+    name: "find_customer",
+    description: "Search JobTread for an existing customer by name fragment. The proxy tokenizes the query and OR-matches each word, so multi-word queries like 'Purple Painting Co' work even when the stored name is just 'Purple Painting'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Name fragment to search for." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_customer_jobs",
+    description: "List jobs for a given customer.",
+    input_schema: {
+      type: "object",
+      properties: {
+        customerId: { type: "string", description: "The customer's JobTread ID." },
+      },
+      required: ["customerId"],
+    },
+  },
+  {
+    name: "find_job",
+    description: "Search jobs across the organization by name fragment.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Name fragment to search for." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "create_customer",
+    description: "Create a new customer account in JobTread plus its primary contact. Returns the created account + contact IDs.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Customer / account name." },
+        contactName: { type: "string", description: "Primary contact's full name. Defaults to the account name if omitted." },
+        email: { type: "string", description: "Primary contact email." },
+        phone: { type: "string", description: "Primary contact phone number." },
+        address: { type: "string", description: "Customer mailing address (the job site address is set separately via create_job)." },
+        leadSource: { type: "string", description: "How this lead came in (stored as a custom field on the account)." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "create_job",
+    description: "Create a job under a customer. The Job Type and How Did Bid Come In custom fields populate automatically from tier + bidOrigin.",
+    input_schema: {
+      type: "object",
+      properties: {
+        customerId: { type: "string", description: "The customer's JobTread ID." },
+        name: { type: "string", description: "Job name." },
+        address: { type: "string", description: "Job site address." },
+        tier: { type: "string", description: "Pricing tier — 'standard' | 'production' | 'highend' | 'prevailing'. Maps to the Job Type custom field." },
+        bidOrigin: { type: "string", description: "How the bid came in — 'Job Walk' | 'Digital Takeoff' | 'Partner Work Order'. Maps to the How Did Bid Come In custom field." },
+      },
+      required: ["customerId", "name"],
+    },
+  },
+  {
+    name: "create_cost_group",
+    description: "Create a cost group on a job. Omit parentCostGroupId for top-level groups (Interior, Exterior). Use quantityFormula for derived quantities or quantity for literal numbers.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID." },
+        name: { type: "string", description: "Cost group name." },
+        parentCostGroupId: { type: "string", description: "Parent cost group ID. Omit for top-level groups." },
+        quantityFormula: { type: "string", description: "Formula expression (e.g. '2 * (12 + 14) * 9' for room wall SF)." },
+        unitId: { type: "string", description: "Unit ID — see system prompt for SF/LF/EA/HR IDs." },
+        quantity: { type: "number", description: "Literal numeric quantity if no formula." },
+      },
+      required: ["jobId", "name"],
+    },
+  },
+  {
+    name: "create_cost_item",
+    description: "Create a cost item under a cost group. organizationCostItemId links to the org catalog. quantityFormula '{Parent Quantity}' (literal, with braces) inherits from the parent subgroup.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID." },
+        costGroupId: { type: "string", description: "Parent cost group ID." },
+        name: { type: "string", description: "Cost item name (e.g. 'Drywall Walls - Existing - 2-Coats')." },
+        organizationCostItemId: { type: "string", description: "Org catalog item ID for the substrate+coats combo." },
+        costCodeId: { type: "string", description: "Cost code ID (the 'code' field from the catalog)." },
+        costTypeId: { type: "string", description: "Labor or Materials — see system prompt." },
+        unitId: { type: "string", description: "Unit ID." },
+        quantityFormula: { type: "string", description: "Formula. Use '{Parent Quantity}' (literal, with braces) to inherit from the parent." },
+        quantity: { type: "number", description: "Literal numeric quantity if no formula." },
+        unitCost: { type: "number", description: "Per-unit cost (catalog default × tier multiplier)." },
+        unitPrice: { type: "number", description: "Per-unit price (catalog default × tier multiplier)." },
+      },
+      required: ["jobId", "costGroupId", "name"],
+    },
+  },
+];
+
+// Extract user-visible text from a BuildChat API-shape message. Returns null
+// when the message has no displayable text (pure tool_use turn or tool_result
+// echo) so the chat log skips it.
+function buildChatDisplayText(m) {
+  if (typeof m.content === "string") return m.content;
+  if (!Array.isArray(m.content)) return null;
+  const text = m.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+  return text || null;
+}
 
 function BuildChat({ payload }) {
+  // Each message is in API-compatible shape: { role, content } where content
+  // is either a string OR an array of typed blocks (text / tool_use / tool_result).
+  // The opening assistant message is display-only — it's sliced off when sending
+  // to /api/chat because Anthropic requires the first message to be from the user.
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      text: "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.",
+      content: "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.",
     },
   ]);
   const [inputText, setInputText] = useState("");
@@ -3302,9 +3425,10 @@ function BuildChat({ payload }) {
   const [error, setError] = useState("");
   const scrollerRef = useRef(null);
 
-  // Build context — IDs accumulated across the conversation. Lives in a ref so
-  // updates don't force re-renders (the values are read fresh each time the
-  // system prompt is composed).
+  // Build context — IDs accumulated as tools execute. Kept in a ref because
+  // updates happen mid-turn; the system prompt re-reads the latest values on
+  // each callClaude. Note: with native tool use, Claude also sees real tool_result
+  // blocks in the conversation, so this is mainly a status convenience for the prompt.
   const contextRef = useRef({
     customerId: null,
     jobId: null,
@@ -3320,29 +3444,15 @@ function BuildChat({ payload }) {
   }, [messages, thinking]);
 
   function buildSystemPrompt() {
-    return `You are a JobTread build assistant for Purple Painting Co. Your job is to walk the user through building a budget in JobTread by emitting tool calls (actions) that the app executes on your behalf.
+    return `You are a JobTread build assistant for Purple Painting Co. Your job is to build a budget in JobTread by calling the provided tools.
 
-RESPONSE FORMAT
+PRINCIPLES
 ═══════════════════
-Respond with ONLY the raw JSON object — no prose, no markdown fences, no text before or after. Your first character must be { and your last character must be }:
-{
-  "actions": [ { "name": "<actionName>", "payload": {...} }, ... ],
-  "reply": "<message shown to the user>"
-}
-- "actions" may be empty if you're just asking a question or reporting status.
-- Actions execute sequentially in order. Later actions can use IDs from earlier ones (see CURRENT BUILD CONTEXT).
-- To wait on a user answer, return empty actions + the question in "reply".
-- After actions execute, the app sends you their results as a user message prefixed "Tool results:". Read it and continue.
-
-AVAILABLE ACTIONS
-═══════════════════
-1. find_customer        { "query": "<name fragment>" }
-2. get_customer_jobs    { "customerId": "<id>" }
-3. find_job             { "query": "<name|address fragment>" }
-4. create_customer      { "name", "contactName"?, "email"?, "phone"?, "address"?, "leadSource"? }
-5. create_job           { "customerId", "name", "address"?, "tier", "bidOrigin" }
-6. create_cost_group    { "jobId", "name", "parentCostGroupId"?, "quantityFormula"?, "unitId"?, "quantity"? }
-7. create_cost_item     { "jobId", "costGroupId", "organizationCostItemId", "name", "costCodeId", "costTypeId", "unitId", "quantityFormula"?, "quantity"?, "unitCost", "unitPrice" }
+- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
+- Tools available: find_customer, get_customer_jobs, find_job, create_customer, create_job, create_cost_group, create_cost_item. Each tool's input schema describes its required and optional fields.
+- When you need a decision from the user (e.g. picking among multiple search hits, filling in missing details), reply with text and NO tool calls. Otherwise prefer calling tools over describing what you would do.
+- Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
+- If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
 
 IDS YOU'LL NEED
 ═══════════════════
@@ -3378,18 +3488,18 @@ CRITICAL JT RULES
 BUILD SEQUENCE
 ═══════════════════
 Stage A — Resolve customer + job:
-1. Ask user for customer name + job address if you don't have them.
-2. find_customer with the name. If matches, list them and let user pick. If none, ask for full details (contact name, email, phone, address) then create_customer.
-3. If existing customer chosen, get_customer_jobs. If a job already matches, use it. Else create_job.
-4. When creating jobs, always set customFieldValues for Job Type (from payload.tier) and How Did Bid Come In (from payload.bidOrigin).
+1. If you don't have the customer name + job address, ask the user.
+2. Call find_customer with the name. If matches, list them and let the user pick. If none, ask for full details (contact name, email, phone, address) then call create_customer.
+3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job.
+4. When calling create_job, always include tier (from payload.tier) and bidOrigin (from payload.bidOrigin) so the custom fields populate.
 
 Stage B — Top-level structure:
-5. Create "Interior" cost group on the job (no parent).
-6. Create "Exterior" cost group on the job (no parent).
+5. Create "Interior" cost group on the job (no parentCostGroupId).
+6. Create "Exterior" cost group on the job (no parentCostGroupId).
 
 Stage C — Rooms (interior):
 For each room in payload.rooms:
-7. Create parent cost group with parentCostGroupId=Interior.id.
+7. Create parent cost group with parentCostGroupId=<Interior.id>.
 8. For each enabled substrate, create subgroup + cost item:
    a. Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
       Quantity formulas (substitute actual dims as numbers):
@@ -3436,50 +3546,48 @@ PAYLOAD (what you're building)
 ${JSON.stringify(payload, null, 2)}`;
   }
 
-  // Execute one tool action via /api/jobtread, capture result, update context.
-  async function executeAction(action) {
+  // Execute one tool call via /api/jobtread. Returns the raw JT response (or
+  // an error object). Side effect: updates contextRef with any returned IDs.
+  async function executeAction(name, input) {
     let result;
     try {
       const resp = await fetch("/api/jobtread", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // /api/jobtread expects { action: <name>, payload: <object> } — Claude emits
-        // each action as { name, payload }, so rename the key on the way out.
-        body: JSON.stringify({ action: action.name, payload: action.payload }),
+        body: JSON.stringify({ action: name, payload: input }),
       });
       result = await resp.json();
       if (!resp.ok) {
-        contextRef.current.errors.push({ action: action.name, status: resp.status, error: result });
+        contextRef.current.errors.push({ action: name, status: resp.status, error: result });
       }
     } catch (e) {
       result = { error: "fetch_failed", message: e.message };
-      contextRef.current.errors.push({ action: action.name, error: e.message });
+      contextRef.current.errors.push({ action: name, error: e.message });
     }
 
-    // Extract IDs into build context so subsequent actions / system prompts see them.
     const ctx = contextRef.current;
-    if (action.name === "create_customer") {
+    if (name === "create_customer") {
       const id = result?.createAccount?.createdAccount?.id;
       if (id) ctx.customerId = id;
-    } else if (action.name === "create_job") {
+    } else if (name === "create_job") {
       const id = result?.createJob?.createdJob?.id;
       if (id) ctx.jobId = id;
-    } else if (action.name === "create_cost_group") {
+    } else if (name === "create_cost_group") {
       const id = result?.createCostGroup?.createdCostGroup?.id;
-      const name = result?.createCostGroup?.createdCostGroup?.name || action.payload?.name;
-      if (id && name) ctx.costGroupIds[name] = id;
+      const groupName = result?.createCostGroup?.createdCostGroup?.name || input?.name;
+      if (id && groupName) ctx.costGroupIds[groupName] = id;
     }
 
-    return { action: action.name, payload: action.payload, result };
+    return result;
   }
 
-  // Call /api/chat with current visible+hidden history + system prompt.
-  // Returns { actions, reply }.
-  async function callClaude(history) {
-    const apiMessages = history
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.text }));
+  // Strip the display-only opening assistant message (Anthropic requires the
+  // first message to be from the user).
+  function toApiMessages(history) {
+    return history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+  }
 
+  async function callClaude(history) {
     const resp = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3487,7 +3595,8 @@ ${JSON.stringify(payload, null, 2)}`;
         model: "claude-sonnet-4-6",
         max_tokens: 4000,
         system: buildSystemPrompt(),
-        messages: apiMessages,
+        tools: BUILD_CHAT_TOOLS,
+        messages: toApiMessages(history),
       }),
     });
     if (!resp.ok) {
@@ -3498,34 +3607,7 @@ ${JSON.stringify(payload, null, 2)}`;
     if (data.type === "error" || data.error) {
       throw new Error(data.error?.message || "API error");
     }
-    const textBlock = data.content?.find((c) => c.type === "text");
-    if (!textBlock) throw new Error("No text in response");
-    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
-
-    // Robust JSON extraction in three tiers:
-    //   1) Fast path — the whole string parses cleanly.
-    //   2) If Sonnet wraps the JSON in conversational prose, slice from the
-    //      first "{" to the last "}" and try again. (This is what causes
-    //      JSON.parse to throw — and what drops every action on the floor.)
-    //   3) If both fail, fall back to a pure reply so the user at least sees
-    //      Claude's text instead of a silent stall.
-    let parsed = null;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      const first = cleaned.indexOf("{");
-      const last = cleaned.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try { parsed = JSON.parse(cleaned.slice(first, last + 1)); } catch { /* fall through */ }
-      }
-    }
-    if (parsed) {
-      return {
-        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-        reply: typeof parsed.reply === "string" ? parsed.reply : "",
-      };
-    }
-    return { actions: [], reply: cleaned.slice(0, 1000) };
+    return data;  // full response: content[], stop_reason, ...
   }
 
   async function sendMessage() {
@@ -3534,39 +3616,44 @@ ${JSON.stringify(payload, null, 2)}`;
     setInputText("");
     setError("");
 
-    let history = [...messages, { role: "user", text: userText }];
+    let history = [...messages, { role: "user", content: userText }];
     setMessages(history);
     setThinking(true);
 
     const MAX_STEPS = 8;
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
-        const { actions, reply } = await callClaude(history);
-        const assistantMsg = { role: "assistant", text: reply || "(no message)" };
-        history = [...history, assistantMsg];
+        const data = await callClaude(history);
+        // Echo the assistant turn verbatim — Claude needs to see its own previous
+        // content (text + tool_use blocks) on the next turn for tool_use_id linkage.
+        history = [...history, { role: "assistant", content: data.content }];
         setMessages(history);
 
-        if (!actions.length) return; // pure reply — back to user
-
-        // Run each action, then feed results back to Claude
-        const results = [];
-        for (const a of actions) {
-          // eslint-disable-next-line no-await-in-loop
-          results.push(await executeAction(a));
+        if (data.stop_reason !== "tool_use") {
+          // end_turn / max_tokens / stop_sequence — yield to the user
+          return;
         }
-        const toolMsg = {
-          role: "user",
-          text: `Tool results:\n${JSON.stringify(results, null, 2)}`,
-          _hidden: true,
-        };
-        history = [...history, toolMsg];
+
+        // Execute every tool_use block from this turn. All tool_result blocks
+        // go back together as ONE user turn — Anthropic groups them like this.
+        const toolUseBlocks = (data.content || []).filter((b) => b.type === "tool_use");
+        const toolResultBlocks = [];
+        for (const block of toolUseBlocks) {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await executeAction(block.name, block.input);
+          toolResultBlocks.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        }
+        history = [...history, { role: "user", content: toolResultBlocks }];
         setMessages(history);
       }
-      // Hit cap
-      setMessages((prev) => [...prev, { role: "assistant", text: "Hit max steps — pausing. What would you like to do?" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps — pausing. What would you like to do?" }]);
     } catch (e) {
       setError(e.message || "Something went wrong");
-      setMessages((prev) => [...prev, { role: "assistant", text: `(Error: ${e.message})` }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: `(Error: ${e.message})` }]);
     } finally {
       setThinking(false);
     }
@@ -3595,11 +3682,13 @@ ${JSON.stringify(payload, null, 2)}`;
         <span>Building in JobTread</span>
       </div>
 
-      {/* Message log — internal tool-result echoes are filtered out (m._hidden) */}
+      {/* Message log — tool_use / tool_result blocks render no bubble; only text shows. */}
       <div ref={scrollerRef} style={{ padding: 12, maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-        {messages.filter((m) => !m._hidden).map((m, i) => (
-          <ChatBubble key={i} message={m} />
-        ))}
+        {messages.map((m, i) => {
+          const text = buildChatDisplayText(m);
+          if (!text) return null;
+          return <ChatBubble key={i} message={{ role: m.role, text }} />;
+        })}
         {thinking && (
           <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
             Thinking…
