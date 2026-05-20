@@ -4206,57 +4206,82 @@ ${JSON.stringify(payload, null, 2)}`;
 
 const DOCUMENT_CHAT_TOOLS = [
   {
-    name: "create_document",
-    description: "Create a JobTread document (proposal). Barebones — line items are added afterwards via update_document. type is typically 'customerOrder' for customer-facing proposals.",
+    name: "find_user",
+    description: "Look up an internal Purple Painting team member by name fragment. Returns matching users with { name, emailAddress, phoneNumber } — use these as fromName / fromEmailAddress / fromPhoneNumber on create_document. The proxy filters to @purplepainting.net users and excludes machine accounts.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name fragment to match (e.g. 'Kareem', 'Peter')." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "get_job_cost_items",
+    description: "List the JOB's cost items so you can mirror them as document line items. Each node has { id, name, quantity, unitPrice, costGroup }. The id is the jobCostItemId you must use for the existingCostItem lineItem variant.",
     input_schema: {
       type: "object",
       properties: {
         jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
-        type: { type: "string", description: "Document type — usually 'customerOrder' for customer-facing proposals." },
-        name: { type: "string", description: "Document name (e.g. 'Smith Family — Interior Repaint Proposal'). Optional; JT defaults to type + date." },
-        fromAccountId: { type: "string", description: "Preparer's JT account ID. If unknown, omit and add later via update_document." },
-        toAccountId: { type: "string", description: "Recipient's JT account ID — defaults to the customer's primaryContact. If unknown, omit and add later." },
-        taxRate: { type: "number", description: "Tax rate (0..1). Defaults to 0 — paint proposals usually have no tax line." },
-        dueDays: { type: "number", description: "Days until the document is due/expires. Defaults to 30." },
-        description: { type: "string", description: "Scope-of-work text. Goes into the document body." },
-        footer: { type: "string", description: "Exclusions text. Goes at the bottom of the document." },
-        issueDate: { type: "string", description: "ISO date the document is issued (optional)." },
       },
-      required: ["jobId", "type"],
+      required: ["jobId"],
+    },
+  },
+  {
+    name: "create_document",
+    description: "Create a JobTread document. Barebones — line items are added afterwards via update_document. type is 'customerOrder' for customer-facing proposals. taxRate is a decimal (0..1); 0 means no sales tax.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
+        name: { type: "string", description: "Document name (≤128 chars). e.g. 'Smith Family — Interior Repaint Proposal'." },
+        type: { type: "string", description: "Document type enum: 'bidRequest' | 'customerInvoice' | 'customerOrder' | 'vendorBill' | 'vendorOrder'. Use 'customerOrder' for proposals." },
+        fromName: { type: "string", description: "Preparer's display name (the result of find_user)." },
+        toName: { type: "string", description: "Recipient's display name — typically the customer's primary contact." },
+        taxRate: { type: "number", description: "Sales tax rate as a decimal (0..1). Use 0 for paint proposals." },
+        description: { type: "string", description: "Scope-of-work text (≤32768 chars). Goes into the document body." },
+        footer: { type: "string", description: "Exclusions text (≤65536 chars). Goes at the bottom of the document." },
+        dueDays: { type: "number", description: "Days until the document is due (integer ≥ 0). Use 30 by default." },
+        fromEmailAddress: { type: "string", description: "Preparer's email (from find_user)." },
+        fromPhoneNumber: { type: "string", description: "Preparer's phone (from find_user, if present)." },
+        toEmailAddress: { type: "string", description: "Recipient's email — from the customer's primaryContact." },
+      },
+      required: ["jobId", "name", "type", "fromName", "toName", "taxRate"],
     },
   },
   {
     name: "update_document",
-    description: "Update an existing JobTread document. Any subset of fields may be passed — only the present ones are sent. lineItems reference jobCostItemId (NOT sourceCostItemId, NOT organizationCostItemId); omit it for free-text lines.",
+    description: "Update an existing JobTread document. Any subset of fields may be passed. lineItems mirror the budget via the existingCostItem variant — { jobCostItemId, name?, quantity?, unitPrice? } — referencing JOB cost items (NOT sourceCostItemId, NOT organizationCostItemId). Use get_job_cost_items first to fetch the jobCostItemId values.",
     input_schema: {
       type: "object",
       properties: {
-        documentId: { type: "string", description: "The document's JobTread ID (from create_document's createdDocument.id)." },
+        id: { type: "string", description: "The document's JobTread ID (from create_document's createdDocument.id)." },
         name: { type: "string", description: "Updated document name." },
-        fromAccountId: { type: "string", description: "Updated preparer account ID." },
-        toAccountId: { type: "string", description: "Updated recipient account ID." },
+        fromName: { type: "string", description: "Updated preparer name." },
+        toName: { type: "string", description: "Updated recipient name." },
         taxRate: { type: "number", description: "Updated tax rate (0..1)." },
         dueDays: { type: "number", description: "Updated days until due." },
         description: { type: "string", description: "Updated scope-of-work text." },
         footer: { type: "string", description: "Updated exclusions text." },
-        issueDate: { type: "string", description: "Updated issue date (ISO)." },
+        fromEmailAddress: { type: "string", description: "Updated preparer email." },
+        fromPhoneNumber: { type: "string", description: "Updated preparer phone." },
+        toEmailAddress: { type: "string", description: "Updated recipient email." },
         lineItems: {
           type: "array",
-          description: "Document line items. Mirror the budget via jobCostItemId where possible; omit it for free-text lines.",
+          description: "Document line items — existingCostItem variant. Each item links a JT job cost item via jobCostItemId; optional overrides for name/quantity/unitPrice.",
           items: {
             type: "object",
             properties: {
-              name: { type: "string", description: "Line item name." },
-              description: { type: "string", description: "Optional longer description." },
-              jobCostItemId: { type: "string", description: "Links the line to an existing cost item on the job. Use this — NOT sourceCostItemId, NOT organizationCostItemId — when mirroring the built budget." },
-              quantity: { type: "number", description: "Quantity." },
-              unitCost: { type: "number", description: "Per-unit cost." },
-              unitPrice: { type: "number", description: "Per-unit price (what the customer sees)." },
+              jobCostItemId: { type: "string", description: "The job cost-item's id from get_job_cost_items. NOT sourceCostItemId, NOT organizationCostItemId." },
+              name: { type: "string", description: "Optional override for the line-item display name." },
+              quantity: { type: "number", description: "Optional override for quantity." },
+              unitPrice: { type: "number", description: "Optional override for unit price." },
             },
+            required: ["jobCostItemId"],
           },
         },
       },
-      required: ["documentId"],
+      required: ["id"],
     },
   },
 ];
@@ -4267,7 +4292,7 @@ function DocumentChat({ payload, builtBudget }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Ready to create the customer-facing proposal document. Who's preparing this one — Peter, Lyric, or Kareem? (Or another teammate — let me know who.)",
+      content: "Ready to create the customer-facing proposal document. Who's preparing this one? Default is Kareem — say a different name if it's someone else (Peter, Lyric, etc.).",
     },
   ]);
   const [inputText, setInputText] = useState("");
@@ -4279,8 +4304,8 @@ function DocumentChat({ payload, builtBudget }) {
   // system prompt re-reads the latest values on each callClaude.
   const contextRef = useRef({
     documentId: null,
-    preparer: null,        // { name, accountId? } — filled as the user tells us
-    recipient: null,       // { name, accountId? }
+    preparer: null,        // { name, emailAddress, phoneNumber } — from find_user
+    recipient: null,       // { name, emailAddress } — typically customer primaryContact
     errors: [],
   });
 
@@ -4296,8 +4321,8 @@ function DocumentChat({ payload, builtBudget }) {
 PRINCIPLES
 ═══════════════════
 - Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
-- Tools available: create_document, update_document. Each tool's input schema describes its required and optional fields.
-- When you need a decision from the user (preparer, recipient, edits), reply with text and NO tool calls. Otherwise prefer calling tools over describing what you would do.
+- Tools available: find_user, get_job_cost_items, create_document, update_document. Each tool's input schema describes its required and optional fields.
+- When you need a decision from the user (preparer confirmation, recipient confirmation, conversational edits), reply with text and NO tool calls. Otherwise prefer calling tools.
 - Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
 - If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
 
@@ -4310,48 +4335,51 @@ TYPE: use "customerOrder" for customer-facing proposals.
 
 CRITICAL DOCUMENT RULES
 ═══════════════════
-1. Line items in update_document reference jobCostItemId — NOT sourceCostItemId, NOT organizationCostItemId. If you don't yet know the cost-item IDs for the job (they aren't in builtBudget — that snapshot only carries cost-GROUP IDs), omit jobCostItemId and pass plain text line items (name + description + quantity + unitPrice). The user can wire the linkage later.
-2. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage).
+1. Line items in update_document use the existingCostItem variant — each line is { jobCostItemId, name?, quantity?, unitPrice? }. jobCostItemId comes from get_job_cost_items — it's the JOB cost item's id, NOT sourceCostItemId, NOT organizationCostItemId.
+2. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage). It is a decimal — 0 means no tax, 0.0825 = 8.25%.
 3. dueDays defaults to 30.
-4. Document type is "customerOrder" for proposals.
-5. description = scope of work (selected scope text from payload). footer = exclusions text.
+4. Document type is "customerOrder" for proposals (the enum also has bidRequest, customerInvoice, vendorBill, vendorOrder — don't use those here).
+5. description = scope of work (compose from payload.scope). footer = exclusions text (payload.exclusions).
+6. create_document REQUIRES: jobId, name, type, fromName, toName, taxRate. All required — don't omit any.
 
 BUILD SEQUENCE
 ═══════════════════
-Stage A — Identify parties:
-1. Ask the user: who is preparing this proposal? Suggest Peter / Lyric / Kareem (or another teammate). The user will give you a NAME — you may or may not have the JT account ID. If you don't have the ID, proceed without fromAccountId on create_document and tell the user "I'll create the doc without the preparer linked; share Peter's JT account ID when you have it and I'll patch it via update_document."
-2. Default recipient = the customer's primaryContact. Confirm with the user. Same fallback as above for toAccountId.
+Stage A — Identify the preparer:
+1. The user's opening reply will name the preparer (default Kareem if unspecified — always confirm). Call find_user with that name. The proxy filters to @purplepainting.net non-machine users and returns matches with { name, emailAddress, phoneNumber }. If multiple match, ask the user to pick. Once chosen, use those exact values as fromName / fromEmailAddress / fromPhoneNumber.
 
-Stage B — Create barebones document:
-3. Call create_document with: jobId (from JOB above), type "customerOrder", taxRate 0, dueDays 30, description (composed from payload.scope + payload.exclusions structure), footer (payload.exclusions list), fromAccountId/toAccountId if known.
+Stage B — Confirm the recipient:
+2. Default recipient = the customer's primary contact (from payload.customer or payload.recipient if present, otherwise ask the user for name + email). Confirm with the user, then use toName / toEmailAddress.
 
-Stage C — Mirror the budget as line items:
-4. Call update_document with lineItems mirroring builtBudget.costGroupIds. Without jobCostItemId, lines are free-text:
-     { name: "<group name>", quantity: 1, unitPrice: <price>, description: "<optional>" }
-   Use the costGroupIds names as the line-item names — that's what the customer will see.
+Stage C — Create the barebones document:
+3. Call create_document with ALL required fields: jobId (from JOB above), name (e.g. "<customer> — <job> Proposal"), type "customerOrder", fromName, toName, taxRate 0, dueDays 30, description (the composed scope text), footer (the composed exclusions text), plus fromEmailAddress, fromPhoneNumber, toEmailAddress when known. Capture createdDocument.id from the result.
 
-Stage D — Conversational edits:
+Stage D — Mirror the budget as line items:
+4. Call get_job_cost_items with jobId to fetch the leaf cost items the budget produced. Each node has { id, name, quantity, unitPrice, costGroup }. Then call update_document with lineItems mirroring those, one per cost item:
+     { jobCostItemId: <id>, name: <leaf name>, quantity: <qty>, unitPrice: <price> }
+   The name/quantity/unitPrice are optional overrides — omit them to inherit from the linked cost item, include them to override what the customer sees on this document.
+
+Stage E — Conversational edits:
 5. Honor user-driven edits via update_document. Examples:
-   - "change the footer" → update_document with new footer
-   - "set Peter as preparer" → update_document with new fromAccountId (ask for the ID if unknown)
-   - "drop that line" → update_document with the reduced lineItems array
+   - "change the footer" → update_document { id, footer: "<new text>" }
+   - "drop that line" → update_document { id, lineItems: [<reduced list>] }
+   - "different preparer — Peter" → re-run find_user("Peter"), then update_document { id, fromName, fromEmailAddress, fromPhoneNumber }
 
-Stage E — Summary:
+Stage F — Summary:
 6. After the document is created and any edits applied, reply with EXACTLY this structure (no pipe "|" table syntax, no rehash):
 
 ## ✅ Document Ready
 
 **Job:** <job name>
 **Document:** <document name>
-**Preparer:** <preparer name or "not yet linked">
-**Recipient:** <recipient name or "not yet linked">
+**Preparer:** <preparer name>
+**Recipient:** <recipient name>
 
 **Line Items (<count>):**
 - <item name> — <quantity> @ <unitPrice>
 - <item name> — <quantity> @ <unitPrice>
 (one bullet per line item)
 
-**[Open document in JobTread](https://app.jobtread.com/jobs/<jobId>/documents/<documentId>)**
+**[Open document in JobTread](https://app.jobtread.com/documents/<documentId>)**
 
 CURRENT DOCUMENT CONTEXT
 ═══════════════════
@@ -4392,6 +4420,12 @@ ${JSON.stringify(payload, null, 2)}`;
     if (name === "create_document") {
       const id = result?.createDocument?.createdDocument?.id;
       if (id) ctx.documentId = id;
+    } else if (name === "find_user") {
+      // Single unambiguous match → remember as the current preparer so the
+      // system prompt's status block carries it forward. Multiple matches
+      // wait for the model to pick before populating context.
+      const matches = Array.isArray(result?.matches) ? result.matches : [];
+      if (matches.length === 1) ctx.preparer = matches[0];
     }
 
     return result;

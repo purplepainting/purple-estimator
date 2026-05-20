@@ -276,26 +276,82 @@ const ACTIONS = {
     },
   },
 
+  find_user: {
+    required: ['name'],
+    // Search internal team members (purplepainting.net, non-machine accounts)
+    // by name fragment. Returns { name, emailAddress, phoneNumber } per match
+    // so the chat can use them as fromName / fromEmailAddress / fromPhoneNumber
+    // when creating a document.
+    async execute({ name }, grantKey) {
+      const q = {
+        organization: {
+          $: { id: ORG_ID },
+          memberships: {
+            $: { size: 100 },
+            nodes: {
+              user: { id: {}, name: {}, emailAddress: {}, phoneNumber: {}, isMachine: {} },
+            },
+          },
+        },
+      };
+      const raw = await paveCall(q, grantKey);
+      const nodes = raw?.organization?.memberships?.nodes || [];
+      const needle = String(name || '').trim().toLowerCase();
+      const matches = nodes
+        .map((n) => n?.user)
+        .filter((u) => u && !u.isMachine)
+        .filter((u) => (u.emailAddress || '').toLowerCase().endsWith('@purplepainting.net'))
+        .filter((u) => !needle || (u.name || '').toLowerCase().includes(needle))
+        .map((u) => ({ name: u.name, emailAddress: u.emailAddress, phoneNumber: u.phoneNumber || null }));
+      return { matches, _httpStatus: raw?._httpStatus ?? 200 };
+    },
+  },
+
+  get_job_cost_items: {
+    required: ['jobId'],
+    // List the job's leaf cost items so the chat can mirror them as document
+    // line items via jobCostItemId (the "existingCostItem" lineItem variant).
+    async execute({ jobId }, grantKey) {
+      const q = {
+        job: {
+          $: { id: jobId },
+          costItems: {
+            $: { size: 500 },
+            nodes: {
+              id: {},
+              name: {},
+              quantity: {},
+              unitPrice: {},
+              costGroup: { id: {}, name: {} },
+            },
+          },
+        },
+      };
+      return paveCall(q, grantKey);
+    },
+  },
+
   create_document: {
-    required: ['jobId', 'type'],
-    // Create a JobTread document (e.g. customer-facing proposal). Barebones —
-    // line items are added via update_document afterwards. type is typically
-    // "customerOrder" for proposals. taxRate/dueDays default to caller's
-    // values (the chat sends 0 / 30 unless the user overrides).
+    required: ['jobId', 'name', 'type', 'fromName', 'toName', 'taxRate'],
+    // Create a JobTread document (customer-facing proposal). Per the verified
+    // JT schema, required: jobId, name (≤128), type (enum), fromName, toName,
+    // taxRate (0..1). Optional used here: description (≤32768 = SCOPE),
+    // footer (≤65536 = EXCLUSIONS), dueDays (int≥0), fromEmailAddress,
+    // fromPhoneNumber, toEmailAddress. documentType enum: bidRequest |
+    // customerInvoice | customerOrder | vendorBill | vendorOrder.
     async execute(payload, grantKey) {
       const {
-        jobId, type, name, fromAccountId, toAccountId,
-        taxRate, dueDays, description, footer, issueDate,
+        jobId, name, type, fromName, toName, taxRate,
+        description, footer, dueDays,
+        fromEmailAddress, fromPhoneNumber, toEmailAddress,
       } = payload;
-      const args = { jobId, type };
-      if (name) args.name = name;
-      if (fromAccountId) args.fromAccountId = fromAccountId;
-      if (toAccountId) args.toAccountId = toAccountId;
-      if (taxRate != null) args.taxRate = taxRate;
-      if (dueDays != null) args.dueDays = dueDays;
+      const args = { jobId, name, type, fromName, toName, taxRate };
       if (description) args.description = description;
       if (footer) args.footer = footer;
-      if (issueDate) args.issueDate = issueDate;
+      if (dueDays != null) args.dueDays = dueDays;
+      if (fromEmailAddress) args.fromEmailAddress = fromEmailAddress;
+      if (fromPhoneNumber) args.fromPhoneNumber = fromPhoneNumber;
+      if (toEmailAddress) args.toEmailAddress = toEmailAddress;
 
       const q = { createDocument: { $: args, createdDocument: { id: {}, name: {} } } };
       return paveCall(q, grantKey);
@@ -303,25 +359,29 @@ const ACTIONS = {
   },
 
   update_document: {
-    required: ['documentId'],
+    required: ['id'],
     // Update an existing document. Any subset of fields may be passed; only
-    // those present are forwarded. lineItems mirror the budget via
-    // jobCostItemId (NOT sourceCostItemId, NOT organizationCostItemId). If
-    // jobCostItemId is unknown, omit it and pass plain name/quantity/unitPrice.
+    // present ones are forwarded. lineItems mirror the budget via the
+    // "existingCostItem" variant — { jobCostItemId, name?, quantity?,
+    // unitPrice? } — referencing JOB cost items (NOT sourceCostItemId, NOT
+    // organizationCostItemId).
     async execute(payload, grantKey) {
       const {
-        documentId, name, fromAccountId, toAccountId,
-        taxRate, dueDays, description, footer, issueDate, lineItems,
+        id, name, fromName, toName, taxRate, dueDays,
+        description, footer, fromEmailAddress, fromPhoneNumber, toEmailAddress,
+        lineItems,
       } = payload;
-      const args = { id: documentId };
+      const args = { id };
       if (name) args.name = name;
-      if (fromAccountId) args.fromAccountId = fromAccountId;
-      if (toAccountId) args.toAccountId = toAccountId;
+      if (fromName) args.fromName = fromName;
+      if (toName) args.toName = toName;
       if (taxRate != null) args.taxRate = taxRate;
       if (dueDays != null) args.dueDays = dueDays;
       if (description) args.description = description;
       if (footer) args.footer = footer;
-      if (issueDate) args.issueDate = issueDate;
+      if (fromEmailAddress) args.fromEmailAddress = fromEmailAddress;
+      if (fromPhoneNumber) args.fromPhoneNumber = fromPhoneNumber;
+      if (toEmailAddress) args.toEmailAddress = toEmailAddress;
       if (Array.isArray(lineItems)) args.lineItems = lineItems;
 
       const q = { updateDocument: { $: args, updatedDocument: { id: {}, name: {} } } };
