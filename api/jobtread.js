@@ -60,11 +60,17 @@ function readRawBody(req) {
 }
 
 // Single Pave call. Returns parsed JSON (or { _raw, _httpStatus } if not JSON).
+//
+// IMPORTANT: Pave expects the grantKey nested inside the query's "$" args object,
+// NOT as a top-level sibling of `query`. Top-level grantKey is silently ignored
+// — Pave returns {"organization":null} with HTTP 200 and the grant shows "Never
+// Used" in JT. Merge grantKey into query.$ (preserving any existing $ keys).
 async function paveCall(query, grantKey) {
+  const authedQuery = { ...query, $: { grantKey, ...(query.$ || {}) } };
   const upstream = await fetch(JOBTREAD_API_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query, variables: {}, grantKey }),
+    body: JSON.stringify({ query: authedQuery }),
   });
   const text = await upstream.text();
   let data;
