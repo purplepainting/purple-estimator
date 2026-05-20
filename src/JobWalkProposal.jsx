@@ -1314,6 +1314,7 @@ export default function App() {
   const [categorizing, setCategorizing] = useState(false);
   const [customScope, setCustomScope] = useState({}); // { groupKey: [strings] }
   const [customExclusions, setCustomExclusions] = useState([]);
+  const [buildStarted, setBuildStarted] = useState(false);          // Step 4 — gates the BuildChat panel
 
   // Load library from storage on mount
   useEffect(() => {
@@ -2337,6 +2338,18 @@ Once the above is confirmed, use the JobTread MCP to:
           {/* Step 4: Export (was step 6 before consolidation) */}
           {step === 4 && (
             <div style={card}>
+              {/* Build in JobTread — in-app budget creation via JT API (Phase 1) */}
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Build in JobTread</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Build the budget directly. Talk through any issues that come up.</p>
+              {!buildStarted ? (
+                <button style={btnPrimary} onClick={() => setBuildStarted(true)}>Start Build</button>
+              ) : (
+                <BuildChat payload={buildPayload()} />
+              )}
+
+              <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
+
+              {/* Manual export fallback — unchanged */}
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>Export</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Copy the JSON payload and paste it into a new chat to build the budget and push the proposal to JobTread.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -3355,6 +3368,487 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
             onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
             disabled={thinking}
             placeholder='Say anything — "all walls 2 coats", "remove dining room", "add a closet 6x4"'
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              fontSize: 13,
+              border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))",
+              borderRadius: 6,
+              background: "transparent",
+              color: "inherit",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={thinking || !inputText.trim()}
+            style={{
+              padding: "8px 14px",
+              fontSize: 12,
+              borderRadius: 6,
+              border: "0.5px solid #2C1654",
+              background: inputText.trim() && !thinking ? "#2C1654" : "transparent",
+              color: inputText.trim() && !thinking ? "#fff" : "var(--color-text-secondary, #888)",
+              cursor: thinking || !inputText.trim() ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontWeight: 500,
+            }}
+          >
+            Send
+          </button>
+        </div>
+        {error && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--color-text-danger, #c33)" }}>
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// BuildChat — Phase 1: in-app budget creation via /api/jobtread (native tool use)
+// ============================================================================
+// Switched from a brittle JSON-action protocol to Anthropic's native tool use.
+// Each user turn runs an internal loop: call /api/chat with messages + tools →
+// if stop_reason === "tool_use", dispatch each tool_use block to /api/jobtread,
+// return the results as tool_result content blocks, loop up to 8 times. When
+// stop_reason === "end_turn", control returns to the user. Tools mirror the
+// api/jobtread.js executors 1:1 (find_customer, create_job, …). A small build
+// context (customerId, jobId, costGroupIds) is still tracked in a ref and
+// serialized into the system prompt as a status summary.
+
+const BUILD_CHAT_TOOLS = [
+  {
+    name: "find_customer",
+    description: "Search JobTread for an existing customer by name fragment. The proxy tokenizes the query and OR-matches each word, so multi-word queries like 'Purple Painting Co' work even when the stored name is just 'Purple Painting'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Name fragment to search for." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_customer_jobs",
+    description: "List jobs for a given customer.",
+    input_schema: {
+      type: "object",
+      properties: {
+        customerId: { type: "string", description: "The customer's JobTread ID." },
+      },
+      required: ["customerId"],
+    },
+  },
+  {
+    name: "find_job",
+    description: "Search jobs across the organization by name fragment.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Name fragment to search for." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "create_customer",
+    description: "Create a new customer account in JobTread plus its primary contact. Returns the created account + contact IDs.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Customer / account name." },
+        contactName: { type: "string", description: "Primary contact's full name. Defaults to the account name if omitted." },
+        email: { type: "string", description: "Primary contact email." },
+        phone: { type: "string", description: "Primary contact phone number." },
+        address: { type: "string", description: "Customer mailing address (the job site address is set separately via create_job)." },
+        leadSource: { type: "string", description: "How this lead came in (stored as a custom field on the account)." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "create_job",
+    description: "Create a job under a customer. The Job Type and How Did Bid Come In custom fields populate automatically from tier + bidOrigin.",
+    input_schema: {
+      type: "object",
+      properties: {
+        customerId: { type: "string", description: "The customer's JobTread ID." },
+        name: { type: "string", description: "Job name." },
+        address: { type: "string", description: "Job site address." },
+        tier: { type: "string", description: "Pricing tier — 'standard' | 'production' | 'highend' | 'prevailing'. Maps to the Job Type custom field." },
+        bidOrigin: { type: "string", description: "How the bid came in — 'Job Walk' | 'Digital Takeoff' | 'Partner Work Order'. Maps to the How Did Bid Come In custom field." },
+      },
+      required: ["customerId", "name"],
+    },
+  },
+  {
+    name: "create_cost_group",
+    description: "Create a cost group on a job. Omit parentCostGroupId for top-level groups (Interior, Exterior). Use quantityFormula for derived quantities or quantity for literal numbers.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID." },
+        name: { type: "string", description: "Cost group name." },
+        parentCostGroupId: { type: "string", description: "Parent cost group ID. Omit for top-level groups." },
+        quantityFormula: { type: "string", description: "Formula expression (e.g. '2 * (12 + 14) * 9' for room wall SF)." },
+        unitId: { type: "string", description: "Unit ID — see system prompt for SF/LF/EA/HR IDs." },
+        quantity: { type: "number", description: "Literal numeric quantity if no formula." },
+      },
+      required: ["jobId", "name"],
+    },
+  },
+  {
+    name: "create_cost_item",
+    description: "Create a cost item under a cost group. organizationCostItemId links to the org catalog. quantityFormula '{Parent Quantity}' (literal, with braces) inherits from the parent subgroup.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID." },
+        costGroupId: { type: "string", description: "Parent cost group ID." },
+        name: { type: "string", description: "Cost item name (e.g. 'Drywall Walls - Existing - 2-Coats')." },
+        organizationCostItemId: { type: "string", description: "Org catalog item ID for the substrate+coats combo." },
+        costCodeId: { type: "string", description: "Cost code ID (the 'code' field from the catalog)." },
+        costTypeId: { type: "string", description: "Labor or Materials — see system prompt." },
+        unitId: { type: "string", description: "Unit ID." },
+        quantityFormula: { type: "string", description: "Formula. Use '{Parent Quantity}' (literal, with braces) to inherit from the parent." },
+        quantity: { type: "number", description: "Literal numeric quantity if no formula." },
+        unitCost: { type: "number", description: "Per-unit cost (catalog default × tier multiplier)." },
+        unitPrice: { type: "number", description: "Per-unit price (catalog default × tier multiplier)." },
+      },
+      required: ["jobId", "costGroupId", "name"],
+    },
+  },
+];
+
+// Extract user-visible text from a BuildChat API-shape message. Returns null
+// when the message has no displayable text (pure tool_use turn or tool_result
+// echo) so the chat log skips it.
+function buildChatDisplayText(m) {
+  if (typeof m.content === "string") return m.content;
+  if (!Array.isArray(m.content)) return null;
+  const text = m.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+  return text || null;
+}
+
+function BuildChat({ payload }) {
+  // Each message is in API-compatible shape: { role, content } where content
+  // is either a string OR an array of typed blocks (text / tool_use / tool_result).
+  // The opening assistant message is display-only — it's sliced off when sending
+  // to /api/chat because Anthropic requires the first message to be from the user.
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content: "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.",
+    },
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [error, setError] = useState("");
+  const scrollerRef = useRef(null);
+
+  // Build context — IDs accumulated as tools execute. Kept in a ref because
+  // updates happen mid-turn; the system prompt re-reads the latest values on
+  // each callClaude. Note: with native tool use, Claude also sees real tool_result
+  // blocks in the conversation, so this is mainly a status convenience for the prompt.
+  const contextRef = useRef({
+    customerId: null,
+    jobId: null,
+    costGroupIds: {},      // { groupName: id }
+    completed: { rooms: [], scopeBuckets: [], tmItems: [] },
+    errors: [],
+  });
+
+  useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    }
+  }, [messages, thinking]);
+
+  function buildSystemPrompt() {
+    return `You are a JobTread build assistant for Purple Painting Co. Your job is to build a budget in JobTread by calling the provided tools.
+
+PRINCIPLES
+═══════════════════
+- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
+- Tools available: find_customer, get_customer_jobs, find_job, create_customer, create_job, create_cost_group, create_cost_item. Each tool's input schema describes its required and optional fields.
+- When you need a decision from the user (e.g. picking among multiple search hits, filling in missing details), reply with text and NO tool calls. Otherwise prefer calling tools over describing what you would do.
+- Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
+- If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
+- CUSTOMER SEARCH IS MANDATORY. ALWAYS call find_customer before ever suggesting, mentioning, or asking about creating a customer. Never claim a customer "doesn't exist", "wasn't found", or "isn't in JobTread" unless find_customer has actually returned an empty nodes array on THIS turn. Treat ANY name-like input — including a single word or a short partial fragment such as "purple" — as a valid search query and pass it to find_customer as-is. Do NOT dismiss short or fragmentary input as a "voice fragment", typo, or incomplete utterance, and do NOT ask the user to retype it before searching. The customer list is small and names are reasonably unique, so partial matches are expected to work. Only AFTER find_customer returns zero matches may you offer to create a new customer.
+
+IDS YOU'LL NEED
+═══════════════════
+ORG: 22PWNY9u7qZd
+UNITS: SF=22PWNYKLitQU, LF=22PWNYKLfXKr, EA=22PWNYKLcv3n, HR=22PWNYKLfARY
+COST TYPES: Labor=22PWNYKLxD4B, Materials=22PWNYKLxwqk
+CUSTOM FIELDS:
+  Job Type=22PWsEVVW4aj (values: "Residential - Standard Home" | "Residential - Custom House" | "Commercial" | "Prevailing Wage" | "Property Management / Production")
+  How Did Bid Come In=22PWsDkAPRYB (values: "Received Digital Bid Invite" | "Requested Job Walk" | "Partner Work Order")
+  Lead Source (customer)=22PWNYKhTU6S
+  Phone (customerContact)=22PWNYKhWqBE
+  Lead Stage (customerContact)=22PWsFuiWzEq
+
+INTERIOR CATALOG (organizationCostItemId per substrate+coats; "code" is the costCodeId for the substrate):
+  Walls:     { "1coat":22PWT9nDL9HP, "2coats":22PWiSS293E2, "prime+2":22PWiSgjqkaq, code:22PWmcdKrCnn }
+  Ceilings:  { "1coat":22PWickkTi46, "2coats":22PWictZ3V84, "prime+2":22PWicwN2pxL, code:22PWmcdMcqbZ }
+  Baseboard: { "1coat":22PWiYQt5Pq8, "2coats":22PWih8XPvPm,                          code:22PWmcdjtJ9C }
+  Doors:     { "1coat":22PXFmQz3HEd, "2coats":22PXFmRbHAgn, "prime+2":22PXFmSG2zeV, code:22PWmcdpBtSV }
+
+TIER MULTIPLIERS (apply to BOTH unitCost AND unitPrice — margin % preserved):
+  standard=1.00, production=0.85, highend=1.35, prevailing=1.65
+
+CRITICAL JT RULES
+═══════════════════
+1. Cost item catalog link = organizationCostItemId (NOT sourceCostItemId).
+2. Tier multiplier applies to unitCost AND unitPrice. Margin stays constant.
+3. Cost items under a subgroup use quantityFormula: "{Parent Quantity}" (literal, including braces).
+4. Flat creates only: parent → subgroup → item. Never nest lineItems on createCostGroup.
+5. Picklist custom fields can't be empty — only set them when you have a value.
+6. Job Type from tier: standard→"Residential - Standard Home", production→"Property Management / Production", highend→"Residential - Custom House", prevailing→"Prevailing Wage".
+7. How Did Bid Come In: payload.bidOrigin "Job Walk"→"Requested Job Walk", "Digital Takeoff"→"Received Digital Bid Invite", "Partner Work Order"→"Partner Work Order".
+
+BUILD SEQUENCE
+═══════════════════
+Stage A — Resolve customer + job:
+1. If you don't have the customer name + job address, ask the user.
+2. Call find_customer with whatever name fragment the user gave — single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for full details (contact name, email, phone, address) and then call create_customer. Never skip the find_customer step.
+3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job.
+4. When calling create_job, always include tier (from payload.tier) and bidOrigin (from payload.bidOrigin) so the custom fields populate.
+
+Stage B — Top-level structure (create ONLY the side(s) that will hold work):
+5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step — and skip Stage C entirely since there are no rooms to place.
+6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets — the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
+
+Stage C — Rooms (interior):
+For each room in payload.rooms:
+7. Create parent cost group with parentCostGroupId=<Interior.id>.
+8. For each enabled substrate, create subgroup + cost item:
+   a. Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
+      Quantity formulas (substitute actual dims as numbers):
+        walls: "2 * (<L> + <W>) * <H>"
+        ceiling: "<L> * <W>"
+        baseboard: "2 * (<L> + <W>)"
+        doors: literal doors.count (use "quantity" not "quantityFormula")
+      Unit IDs: walls/ceiling=SF, baseboard=LF, doors=EA.
+   b. Cost item under that subgroup:
+      - organizationCostItemId = catalog entry by substrate+coats
+      - name = "<Substrate label> - Existing - <Coats label>" (e.g. "Drywall Walls - Existing - 2-Coats")
+      - costCodeId = catalog "code" for that substrate
+      - costTypeId = Labor
+      - unitId = matching unit
+      - quantityFormula = "{Parent Quantity}" (literal)
+      - unitCost, unitPrice = catalog defaults × tier multiplier. If you don't know catalog defaults, ASK the user.
+
+Stage D — Scope buckets:
+For each item in payload.scopeBuckets:
+9. parent = Exterior if substrate starts with "exterior_", else Interior.
+10. Create cost group with literal quantity + unitId by item.unit.
+11. Create cost item. If substrate NOT in interior catalog above, ASK user for organizationCostItemId + costCodeId — Phase 1 doesn't auto-look up the catalog.
+
+Stage E — T&M items:
+For each item in payload.tmItems:
+12. payload.tmItems already include catalogId, costCode, unitCost, unitPrice — use directly.
+13. T&M items belong under their cost-code group from payload.tmCatalog (find/create the group as needed). Don't nest under Interior or Exterior.
+
+Stage F — Summary:
+14. After all built, reply with a clean markdown summary in EXACTLY this structure. Do NOT use pipe "|" table syntax. Do NOT add extra prose or rehash the build narrative. Use the heading, the labeled lines, and one bullet per cost item on its own line. Substitute the bracketed placeholders with real values from payload + the build context (use payload.tier.label and payload.tier.multiplier for the Tier line; use the actual jobId in the link):
+
+## ✅ Build Complete
+
+**Customer:** <customer name>
+**Job:** <job name>
+**Tier:** <tier label> (<multiplier>x)
+
+**Cost Groups (<count>):** <comma-separated group names>
+
+**Cost Items (<count>):**
+- <item name> — <quantity> <unit> @ <coats>
+- <item name> — <quantity> <unit> @ <coats>
+(one bullet per cost item, each on its own line)
+
+**[Open Job in JobTread](https://app.jobtread.com/jobs/<jobId>)**
+
+CURRENT BUILD CONTEXT
+═══════════════════
+${JSON.stringify({
+  customerId: contextRef.current.customerId,
+  jobId: contextRef.current.jobId,
+  costGroupIds: contextRef.current.costGroupIds,
+  completed: contextRef.current.completed,
+  recentErrors: contextRef.current.errors.slice(-3),
+}, null, 2)}
+
+PAYLOAD (what you're building)
+═══════════════════
+${JSON.stringify(payload, null, 2)}`;
+  }
+
+  // Execute one tool call via /api/jobtread. Returns the raw JT response (or
+  // an error object). Side effect: updates contextRef with any returned IDs.
+  async function executeAction(name, input) {
+    let result;
+    try {
+      const resp = await fetch("/api/jobtread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: name, payload: input }),
+      });
+      result = await resp.json();
+      if (!resp.ok) {
+        contextRef.current.errors.push({ action: name, status: resp.status, error: result });
+      }
+    } catch (e) {
+      result = { error: "fetch_failed", message: e.message };
+      contextRef.current.errors.push({ action: name, error: e.message });
+    }
+
+    const ctx = contextRef.current;
+    if (name === "create_customer") {
+      const id = result?.createAccount?.createdAccount?.id;
+      if (id) ctx.customerId = id;
+    } else if (name === "create_job") {
+      const id = result?.createJob?.createdJob?.id;
+      if (id) ctx.jobId = id;
+    } else if (name === "create_cost_group") {
+      const id = result?.createCostGroup?.createdCostGroup?.id;
+      const groupName = result?.createCostGroup?.createdCostGroup?.name || input?.name;
+      if (id && groupName) ctx.costGroupIds[groupName] = id;
+    }
+
+    return result;
+  }
+
+  // Strip the display-only opening assistant message (Anthropic requires the
+  // first message to be from the user).
+  function toApiMessages(history) {
+    return history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  async function callClaude(history) {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        system: buildSystemPrompt(),
+        tools: BUILD_CHAT_TOOLS,
+        messages: toApiMessages(history),
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      throw new Error(`/api/chat HTTP ${resp.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.type === "error" || data.error) {
+      throw new Error(data.error?.message || "API error");
+    }
+    return data;  // full response: content[], stop_reason, ...
+  }
+
+  async function sendMessage() {
+    if (!inputText.trim() || thinking) return;
+    const userText = inputText.trim();
+    setInputText("");
+    setError("");
+
+    let history = [...messages, { role: "user", content: userText }];
+    setMessages(history);
+    setThinking(true);
+
+    const MAX_STEPS = 8;
+    try {
+      for (let step = 0; step < MAX_STEPS; step++) {
+        const data = await callClaude(history);
+        // Echo the assistant turn verbatim — Claude needs to see its own previous
+        // content (text + tool_use blocks) on the next turn for tool_use_id linkage.
+        history = [...history, { role: "assistant", content: data.content }];
+        setMessages(history);
+
+        if (data.stop_reason !== "tool_use") {
+          // end_turn / max_tokens / stop_sequence — yield to the user
+          return;
+        }
+
+        // Execute every tool_use block from this turn. All tool_result blocks
+        // go back together as ONE user turn — Anthropic groups them like this.
+        const toolUseBlocks = (data.content || []).filter((b) => b.type === "tool_use");
+        const toolResultBlocks = [];
+        for (const block of toolUseBlocks) {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await executeAction(block.name, block.input);
+          toolResultBlocks.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        }
+        history = [...history, { role: "user", content: toolResultBlocks }];
+        setMessages(history);
+      }
+      setMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps — pausing. What would you like to do?" }]);
+    } catch (e) {
+      setError(e.message || "Something went wrong");
+      setMessages((prev) => [...prev, { role: "assistant", content: `(Error: ${e.message})` }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return (
+    <div style={{
+      border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+      borderRadius: 8,
+      background: "var(--color-background-primary, #fff)",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      {/* Header */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "8px 12px",
+        background: "var(--color-background-secondary, #f3f3f0)",
+        borderBottom: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+        fontSize: 11,
+        color: "var(--color-text-secondary, #666)",
+      }}>
+        <span>Building in JobTread</span>
+      </div>
+
+      {/* Message log — tool_use / tool_result blocks render no bubble; only text shows. */}
+      <div ref={scrollerRef} style={{ padding: 12, maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.map((m, i) => {
+          const text = buildChatDisplayText(m);
+          if (!text) return null;
+          return <ChatBubble key={i} message={{ role: m.role, text }} />;
+        })}
+        {thinking && (
+          <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
+            Thinking…
+          </div>
+        )}
+      </div>
+
+      {/* Input row */}
+      <div style={{ borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", padding: 12 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
+            disabled={thinking}
+            placeholder='e.g. "Customer is Smith Family, job at 123 Oak Street"'
             style={{
               flex: 1,
               padding: "8px 10px",
