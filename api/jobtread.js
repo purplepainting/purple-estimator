@@ -64,8 +64,11 @@ const ACTIONS = {
         organization: {
           $: { id: ORG_ID },
           accounts: {
-            $: { size: 10, where: [['name', 'like', `%${query}%`]] },
-            nodes: { id: {}, name: {}, primaryContact: { id: {}, name: {} } },
+            $: {
+              where: { and: [['type', 'customer'], ['name', 'like', `%${query}%`]] },
+              size: 10,
+            },
+            nodes: { id: {}, name: {}, type: {}, primaryContact: { id: {}, name: {} } },
           },
         },
       };
@@ -96,7 +99,10 @@ const ACTIONS = {
         organization: {
           $: { id: ORG_ID },
           jobs: {
-            $: { size: 10, where: [['name', 'like', `%${query}%`]] },
+            $: {
+              where: { and: [['name', 'like', `%${query}%`]] },
+              size: 10,
+            },
             nodes: { id: {}, name: {}, location: { address: {} }, account: { id: {}, name: {} } },
           },
         },
