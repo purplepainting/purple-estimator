@@ -3494,9 +3494,9 @@ Stage A — Resolve customer + job:
 3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job.
 4. When calling create_job, always include tier (from payload.tier) and bidOrigin (from payload.bidOrigin) so the custom fields populate.
 
-Stage B — Top-level structure:
-5. Create "Interior" cost group on the job (no parentCostGroupId).
-6. Create "Exterior" cost group on the job (no parentCostGroupId).
+Stage B — Top-level structure (create ONLY the side(s) that will hold work):
+5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step — and skip Stage C entirely since there are no rooms to place.
+6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets — the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
 
 Stage C — Rooms (interior):
 For each room in payload.rooms:
