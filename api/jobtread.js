@@ -26,6 +26,26 @@ const BID_ORIGIN_TO_LABEL = {
   'Partner Work Order': 'Partner Work Order',
 };
 
+// JT's "like" is a literal substring match. Searching the whole phrase
+// ("purple painting co") fails when the stored name is just "purple painting".
+// Tokenize, drop common business-suffix filler words, and OR the remaining
+// words so any single token hit counts as a match.
+const SEARCH_FILLER_WORDS = new Set([
+  'co', 'company', 'inc', 'llc', 'the', 'family', 'residence', '&', 'and',
+]);
+
+function tokenizeForSearch(query) {
+  const all = String(query || '').split(/\s+/).filter((w) => w.length > 0);
+  const filtered = all.filter((w) => !SEARCH_FILLER_WORDS.has(w.toLowerCase()));
+  return filtered.length > 0 ? filtered : all;
+}
+
+function nameLikeCondition(query) {
+  const words = tokenizeForSearch(query);
+  if (words.length === 1) return ['name', 'like', `%${words[0]}%`];
+  return { or: words.map((w) => ['name', 'like', `%${w}%`]) };
+}
+
 export const config = {
   api: { bodyParser: false },
 };
@@ -65,7 +85,7 @@ const ACTIONS = {
           $: { id: ORG_ID },
           accounts: {
             $: {
-              where: { and: [['type', 'customer'], ['name', 'like', `%${query}%`]] },
+              where: { and: [['type', 'customer'], nameLikeCondition(query)] },
               size: 10,
             },
             nodes: { id: {}, name: {}, type: {}, primaryContact: { id: {}, name: {} } },
@@ -100,7 +120,7 @@ const ACTIONS = {
           $: { id: ORG_ID },
           jobs: {
             $: {
-              where: { and: [['name', 'like', `%${query}%`]] },
+              where: { and: [nameLikeCondition(query)] },
               size: 10,
             },
             nodes: { id: {}, name: {}, location: { address: {} }, account: { id: {}, name: {} } },
