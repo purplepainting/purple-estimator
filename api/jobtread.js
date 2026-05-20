@@ -65,7 +65,7 @@ const ACTIONS = {
           $: { id: ORG_ID },
           accounts: {
             $: { size: 10, where: [['name', 'like', `%${query}%`]] },
-            nodes: { id: {}, name: {}, primaryContact: { id: {}, name: {}, email: {}, phone: {} } },
+            nodes: { id: {}, name: {}, primaryContact: { id: {}, name: {} } },
           },
         },
       };
