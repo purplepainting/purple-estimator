@@ -68,6 +68,25 @@ export default async function handler(req, res) {
 
   console.log('chat proxy: model:', model, 'max_tokens:', max_tokens, 'msg_count:', messages.length, 'tool_count:', Array.isArray(tools) ? tools.length : 0);
 
+  // Prompt caching: mark the system prompt and the tools block as ephemeral so
+  // Anthropic caches them across the build-loop turns. Cached input tokens
+  // don't count toward ITPM and bill at ~10% of base. Caching applies to the
+  // request prefix (system → tools → messages); messages stay uncached because
+  // they change every turn. Note: caching only engages when the cached prefix
+  // is ≥ ~1024 tokens; below that it silently no-ops.
+  let cachedSystem;
+  if (typeof system === 'string' && system.length > 0) {
+    cachedSystem = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+  } else if (Array.isArray(system) && system.length > 0) {
+    // Already a content-block array — pass through unchanged.
+    cachedSystem = system;
+  }
+  const cachedTools = Array.isArray(tools) && tools.length > 0
+    ? tools.map((t, i) =>
+        i === tools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t
+      )
+    : null;
+
   try {
     const upstream = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
@@ -79,13 +98,14 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model,
         max_tokens: max_tokens ?? 4096,
-        ...(system ? { system } : {}),
-        ...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
+        ...(cachedSystem ? { system: cachedSystem } : {}),
+        ...(cachedTools ? { tools: cachedTools } : {}),
         messages,
       }),
     });
     const data = await upstream.json();
     console.log('chat proxy upstream status:', upstream.status);
+    console.log('chat proxy cache:', JSON.stringify(data?.usage || {}));
     return res.status(upstream.status).json(data);
   } catch (err) {
     console.error('chat proxy fetch error:', err.message);
