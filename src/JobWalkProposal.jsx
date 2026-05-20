@@ -3530,7 +3530,22 @@ For each item in payload.tmItems:
 13. T&M items belong under their cost-code group from payload.tmCatalog (find/create the group as needed). Don't nest under Interior or Exterior.
 
 Stage F — Summary:
-14. After all built, reply with: customer name, job name, # cost groups created, # cost items created, JT link https://app.jobtread.com/jobs/<jobId>.
+14. After all built, reply with a clean markdown summary in EXACTLY this structure. Do NOT use pipe "|" table syntax. Do NOT add extra prose or rehash the build narrative. Use the heading, the labeled lines, and one bullet per cost item on its own line. Substitute the bracketed placeholders with real values from payload + the build context (use payload.tier.label and payload.tier.multiplier for the Tier line; use the actual jobId in the link):
+
+## ✅ Build Complete
+
+**Customer:** <customer name>
+**Job:** <job name>
+**Tier:** <tier label> (<multiplier>x)
+
+**Cost Groups (<count>):** <comma-separated group names>
+
+**Cost Items (<count>):**
+- <item name> — <quantity> <unit> @ <coats>
+- <item name> — <quantity> <unit> @ <coats>
+(one bullet per cost item, each on its own line)
+
+**[Open Job in JobTread](https://app.jobtread.com/jobs/<jobId>)**
 
 CURRENT BUILD CONTEXT
 ═══════════════════
