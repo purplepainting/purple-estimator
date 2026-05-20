@@ -1267,6 +1267,42 @@ function detectCostGroups(items, library) {
   return [...groups];
 }
 
+// Map the cost-group NAMES that BuildChat created in JobTread onto scope-library
+// cost_group keys. BuildChat's subgroup names are fixed by its system prompt
+// (Stage C step 8a: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard",
+// "Doors+Frames"). Scope-bucket and T&M groups use other names; fall back to
+// trigger-keyword matching against the library for those.
+function detectGroupsFromBuiltBudget(builtBudget, library) {
+  if (!builtBudget || !builtBudget.costGroupIds) return [];
+  const keys = new Set();
+  const names = Object.keys(builtBudget.costGroupIds);
+  const NAME_MAP = [
+    { match: /drywall (walls|ceilings)/i, key: "drywall_walls_ceilings" },
+    { match: /wood baseboard|baseboard|trim|crown|molding/i, key: "baseboard_trim" },
+    { match: /doors?\+?frames?|\bdoor\b|jamb|casing/i, key: "doors_frames" },
+    { match: /cabinet|vanity|millwork/i, key: "cabinets" },
+    { match: /stucco|siding/i, key: "exterior_stucco_siding" },
+    { match: /fascia|eaves|soffit|exterior (wood|trim)/i, key: "exterior_wood_trim" },
+    { match: /fence|deck|stain|seal/i, key: "fence_deck_stain" },
+  ];
+  names.forEach((n) => {
+    // Skip pure structural parents that carry no prep meaning.
+    if (/^(interior|exterior)$/i.test(n.trim())) return;
+    let matched = false;
+    for (const { match, key } of NAME_MAP) {
+      if (match.test(n)) { keys.add(key); matched = true; }
+    }
+    // Fallback: trigger-keyword match against the library (covers room-name
+    // parents and any custom group names).
+    if (!matched) {
+      Object.entries(library.cost_groups).forEach(([key, group]) => {
+        if (group.triggers.some((t) => n.toLowerCase().includes(t))) keys.add(key);
+      });
+    }
+  });
+  return [...keys];
+}
+
 // ============================================================================
 // MAIN APP
 // ============================================================================
@@ -1315,7 +1351,10 @@ export default function App() {
   const [categorizing, setCategorizing] = useState(false);
   const [customScope, setCustomScope] = useState({}); // { groupKey: [strings] }
   const [customExclusions, setCustomExclusions] = useState([]);
-  const [buildStarted, setBuildStarted] = useState(false);          // Step 4 — gates the BuildChat panel
+  const [buildStarted, setBuildStarted] = useState(false);          // Step 3 — gates the BuildChat panel
+  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt — feeds Scope
+  const [budgetConfirmed, setBudgetConfirmed] = useState(false);    // "Budget looks good" gate clicked
+  const [scopeGroups, setScopeGroups] = useState([]);               // Cost-group keys resolved at categorize time (budget → fallback to parsed)
 
   // Load library from storage on mount
   useEffect(() => {
@@ -1514,16 +1553,22 @@ export default function App() {
   async function categorizeScopeItems() {
     setCategorizing(true);
     try {
+      // Re-source Scope from the BUILT budget (in-memory snapshot from BuildChat).
+      // Fall back to parsed-room detection if the snapshot is somehow empty.
+      const budgetGroups = detectGroupsFromBuiltBudget(builtBudget, library);
+      const groupsForScope = budgetGroups.length ? budgetGroups : detectedGroups;
+      setScopeGroups(groupsForScope);
+
       const context = {
         tier,
         prepTier: tierMeta.prepTier,
         rooms,
         flags,
-        detectedGroups,
+        detectedGroups: groupsForScope,
       };
 
       const groupsForApi = {};
-      detectedGroups.forEach((key) => {
+      groupsForScope.forEach((key) => {
         const grp = library.cost_groups[key];
         if (grp) groupsForApi[key] = grp[tierMeta.prepTier] || [];
       });
@@ -1598,7 +1643,7 @@ Reasoning hints:
         newScopeSel["_universal"][item] = true;
       });
       // Each group
-      detectedGroups.forEach((gk) => {
+      groupsForScope.forEach((gk) => {
         newScopeSel[gk] = {};
         (parsed.groups?.[gk]?.recommended || []).forEach((item) => {
           newScopeSel[gk][item] = true;
@@ -1612,7 +1657,7 @@ Reasoning hints:
       });
       setExclusionSelections(newExclSel);
 
-      setStep(3);
+      setStep(4);
     } catch (e) {
       alert("Categorization failed: " + e.message);
     } finally {
@@ -1872,8 +1917,9 @@ Once the above is confirmed, use the JobTread MCP to:
               const fullSteps = [
                 { realStep: 1, label: "Input" },
                 { realStep: 2, label: inputMode === "takeoff" ? "Confirm" : "Clarify + Items" },
-                { realStep: 3, label: "Scope", hideIn: ["takeoff"] },
-                { realStep: 4, label: "Export" },
+                { realStep: 3, label: "Build" },
+                { realStep: 4, label: "Scope", hideIn: ["takeoff"] },
+                { realStep: 5, label: "Export" },
               ].filter((s) => !s.hideIn || !s.hideIn.includes(inputMode));
 
               return fullSteps.map((s, visibleIdx) => {
@@ -2252,7 +2298,8 @@ Once the above is confirmed, use the JobTread MCP to:
                     style={btnPrimary}
                     onClick={() => {
                       // Skip AI categorization entirely — pre-populate scope + exclusions
-                      // with the takeoff defaults and jump straight to export.
+                      // with the takeoff defaults. Build comes next; takeoff's Scope step
+                      // is hidden, so the confirm gate (step 3) will jump straight to Export.
                       const universalSel = { "Per Plans and Specifications": true };
                       setScopeSelections({ _universal: universalSel });
                       const exclSel = {};
@@ -2260,32 +2307,81 @@ Once the above is confirmed, use the JobTread MCP to:
                       setExclusionSelections(exclSel);
                       setCustomScope({ _universal: ["Per Plans and Specifications"] });
                       setCustomExclusions([...takeoffExclusions]);
-                      setStep(4);
+                      setStep(3);
                     }}
                     disabled={!rooms.length}
                   >
-                    Confirm → Export →
+                    Confirm → Build →
                   </button>
                 ) : (
                   <button
                     style={btnPrimary}
-                    onClick={categorizeScopeItems}
-                    disabled={categorizing || !rooms.length || (inputMode !== "takeoff" && clarifyRemaining > 0)}
-                    title={inputMode !== "takeoff" && clarifyRemaining > 0 ? `Answer or skip ${clarifyRemaining} remaining clarification${clarifyRemaining === 1 ? "" : "s"} above first.` : undefined}
+                    onClick={() => setStep(3)}
+                    disabled={!rooms.length || clarifyRemaining > 0}
+                    title={clarifyRemaining > 0 ? `Answer or skip ${clarifyRemaining} remaining clarification${clarifyRemaining === 1 ? "" : "s"} above first.` : undefined}
                   >
-                    {categorizing
-                      ? "AI categorizing..."
-                      : inputMode !== "takeoff" && clarifyRemaining > 0
-                        ? `Build Scope → (${clarifyRemaining} left)`
-                        : "Build Scope →"}
+                    {clarifyRemaining > 0
+                      ? `Build Budget → (${clarifyRemaining} left)`
+                      : "Build Budget →"}
                   </button>
                 )}
               </div>
             </div>
           )}
 
-          {/* Step 3: Scope Builder (was step 5 before consolidation) */}
-          {step === 3 && aiCategorization && (
+          {/* Step 3: Build in JobTread + confirm gate */}
+          {step === 3 && (
+            <div style={card}>
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Build in JobTread</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Build the budget directly. Talk through any issues that come up.</p>
+              {!buildStarted ? (
+                <button style={btnPrimary} onClick={() => setBuildStarted(true)}>Start Build</button>
+              ) : (
+                <BuildChat payload={buildPayload()} onBuilt={(snapshot) => setBuiltBudget(snapshot)} />
+              )}
+
+              <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
+
+              {/* Confirm gate — feeds the in-memory snapshot into Scope (or jumps straight to Export for takeoff). */}
+              {!builtBudget ? (
+                <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", margin: 0 }}>
+                  Build the budget above. Once it's done, you'll confirm it here before {inputMode === "takeoff" ? "exporting" : "building the scope"}.
+                </p>
+              ) : (
+                <div>
+                  <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", margin: "0 0 12px" }}>
+                    Budget built: {Object.keys(builtBudget.costGroupIds || {}).length} cost group{Object.keys(builtBudget.costGroupIds || {}).length === 1 ? "" : "s"}.
+                    Confirm to {inputMode === "takeoff" ? "continue to export" : "derive the scope from this budget"}.
+                  </p>
+                  <button
+                    style={btnPrimary}
+                    onClick={() => {
+                      setBudgetConfirmed(true);
+                      if (inputMode === "takeoff") {
+                        setStep(5);
+                      } else {
+                        categorizeScopeItems();
+                      }
+                    }}
+                    disabled={categorizing}
+                  >
+                    {categorizing
+                      ? "AI categorizing..."
+                      : inputMode === "takeoff"
+                        ? "✓ Budget looks good — Continue to Export"
+                        : "✓ Budget looks good — Build Scope"}
+                  </button>
+                </div>
+              )}
+
+              <div style={{ marginTop: 20 }}>
+                <button style={btn} onClick={() => setStep(2)}>← Back</button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Scope Builder (derived from the built budget) */}
+          {step === 4 && aiCategorization && (
             <div>
               <div style={card}>
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Scope of Work</h2>
@@ -2306,8 +2402,8 @@ Once the above is confirmed, use the JobTread MCP to:
                   addCustom={(t) => addCustomScope("_universal", t)}
                 />
 
-                {/* Each detected cost group */}
-                {detectedGroups.map((gk) => {
+                {/* Each scope group resolved from the built budget */}
+                {scopeGroups.map((gk) => {
                   const group = library.cost_groups[gk];
                   if (!group) return null;
                   return (
@@ -2340,27 +2436,15 @@ Once the above is confirmed, use the JobTread MCP to:
               </div>
 
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={btn} onClick={() => setStep(2)}>← Back</button>
-                <button style={btnPrimary} onClick={() => setStep(4)}>Next: Export →</button>
+                <button style={btn} onClick={() => setStep(3)}>← Back</button>
+                <button style={btnPrimary} onClick={() => setStep(5)}>Next: Export →</button>
               </div>
             </div>
           )}
 
-          {/* Step 4: Export (was step 6 before consolidation) */}
-          {step === 4 && (
+          {/* Step 5: Export (manual copy/payload) */}
+          {step === 5 && (
             <div style={card}>
-              {/* Build in JobTread — in-app budget creation via JT API (Phase 1) */}
-              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Build in JobTread</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Build the budget directly. Talk through any issues that come up.</p>
-              {!buildStarted ? (
-                <button style={btnPrimary} onClick={() => setBuildStarted(true)}>Start Build</button>
-              ) : (
-                <BuildChat payload={buildPayload()} />
-              )}
-
-              <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
-
-              {/* Manual export fallback — unchanged */}
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>Export</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Copy the JSON payload and paste it into a new chat to build the budget and push the proposal to JobTread.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -2389,7 +2473,7 @@ Once the above is confirmed, use the JobTread MCP to:
                   {JSON.stringify(buildPayload(), null, 2)}
                 </pre>
               </details>
-              <button style={btn} onClick={() => setStep(inputMode === "takeoff" ? 2 : 3)}>← Back to {inputMode === "takeoff" ? "Confirm" : "Scope"}</button>
+              <button style={btn} onClick={() => setStep(inputMode === "takeoff" ? 3 : 4)}>← Back to {inputMode === "takeoff" ? "Build" : "Scope"}</button>
             </div>
           )}
 
@@ -3734,7 +3818,7 @@ function buildChatDisplayText(m) {
   return text || null;
 }
 
-function BuildChat({ payload }) {
+function BuildChat({ payload, onBuilt }) {
   // Each message is in API-compatible shape: { role, content } where content
   // is either a string OR an array of typed blocks (text / tool_use / tool_result).
   // The opening assistant message is display-only — it's sliced off when sending
@@ -3971,7 +4055,18 @@ ${JSON.stringify(payload, null, 2)}`;
         setMessages(history);
 
         if (data.stop_reason !== "tool_use") {
-          // end_turn / max_tokens / stop_sequence — yield to the user
+          // end_turn / max_tokens / stop_sequence — yield to the user.
+          // Lift a snapshot of what's been built so the parent can gate Scope.
+          if (
+            typeof onBuilt === "function" &&
+            contextRef.current.jobId &&
+            Object.keys(contextRef.current.costGroupIds).length > 0
+          ) {
+            onBuilt({
+              ...contextRef.current,
+              costGroupIds: { ...contextRef.current.costGroupIds },
+            });
+          }
           return;
         }
 
