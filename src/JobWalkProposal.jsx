@@ -1216,6 +1216,7 @@ export default function App() {
   const [clarifications, setClarifications] = useState([]);
   const [inferredFlags, setInferredFlags] = useState({});
   const [answeredQuestions, setAnsweredQuestions] = useState({}); // { id: answer | null }
+  const [clarifyRemaining, setClarifyRemaining] = useState(0); // ClarifyChat queue size — gates Build Scope
 
   // Context flags
   const [flags, setFlags] = useState({
@@ -1957,6 +1958,7 @@ Once the above is confirmed, use the JobTread MCP to:
                       initialHints={clarifications}
                       rooms={rooms}
                       library={library}
+                      onQueueChange={setClarifyRemaining}
                       applyToItem={(itemIndex, updates) => {
                         if (itemIndex == null) return;
                         const next = [...rooms];
@@ -2137,8 +2139,17 @@ Once the above is confirmed, use the JobTread MCP to:
                     Confirm → Export →
                   </button>
                 ) : (
-                  <button style={btnPrimary} onClick={categorizeScopeItems} disabled={categorizing || !rooms.length}>
-                    {categorizing ? "AI categorizing..." : "Build Scope →"}
+                  <button
+                    style={btnPrimary}
+                    onClick={categorizeScopeItems}
+                    disabled={categorizing || !rooms.length || (inputMode !== "takeoff" && clarifyRemaining > 0)}
+                    title={inputMode !== "takeoff" && clarifyRemaining > 0 ? `Answer or skip ${clarifyRemaining} remaining clarification${clarifyRemaining === 1 ? "" : "s"} above first.` : undefined}
+                  >
+                    {categorizing
+                      ? "AI categorizing..."
+                      : inputMode !== "takeoff" && clarifyRemaining > 0
+                        ? `Build Scope → (${clarifyRemaining} left)`
+                        : "Build Scope →"}
                   </button>
                 )}
               </div>
@@ -2910,66 +2921,221 @@ function ClarificationCard({ question, answer, setAnswer, applyToItem, applyMult
 }
 
 // ============================================================================
-// CLARIFY CHAT — open conversational interface. The user types whatever they
-// want ("all 2 coats not 1", "remove the master bath", "add a hall closet"),
-// the model interprets, applies changes via _multiPatch, and replies with
-// what it did. Parser-generated hints become the opening message's suggestion
-// chips — optional shortcuts, not a forced workflow.
+// CLARIFY CHAT — one-question-at-a-time conversational interface. Builds an
+// ordered queue of clarifying questions (mandatory dim/door gaps first, then
+// parser hints) and walks through them as chat turns. Each active question
+// renders with quick-pick chips (instant apply via the existing pattern-match
+// path), a free-text input (routed through the existing Claude API engine),
+// and a Skip button (rotates the question to the end). Power-use freeform
+// still works: typing several answers at once applies them all, and the queue
+// silently advances past any items those answers resolved.
 // ============================================================================
 
-function ClarifyChat({ initialHints, rooms, library, applyToItem, applyMultiPatch }) {
-  // Build the opening assistant message from parser hints (if any) PLUS any
-  // missing-dimension gaps the parser may have missed. Hints become clickable
-  // chips the user can tap to address the obvious things quickly, but typing
-  // freeform text is the primary interface.
-  const [messages, setMessages] = useState(() => {
-    // Locally scan for rooms with missing dimensions (zero or undefined L/W).
-    // This is a safety net in case the parser dropped its mandatory question.
-    const missingDimGaps = rooms
-      .map((r, idx) => ({ r, idx }))
-      .filter(({ r }) => (r.type || "room") === "room")
-      .filter(({ r }) => !r.length || !r.width || r.length === 0 || r.width === 0)
-      .map(({ r }) => `"${r.name || "Unnamed room"}" is missing length/width — what are the dimensions?`);
+// Common-size chip options for a room with missing dimensions, hinted by the
+// room's name. Each option's value is a single-item patch ({length, width})
+// applied via applyToItem(itemIndex, value).
+function clarifyDimChips(room) {
+  const name = (room?.name || "").toLowerCase();
+  if (name.includes("bath")) {
+    return [
+      { label: "5 × 8 (small)", value: { length: 5, width: 8 } },
+      { label: "7 × 10 (typical)", value: { length: 7, width: 10 } },
+      { label: "10 × 12 (master)", value: { length: 10, width: 12 } },
+    ];
+  }
+  if (name.includes("closet")) {
+    return [
+      { label: "4 × 6 (reach-in)", value: { length: 4, width: 6 } },
+      { label: "6 × 8 (walk-in)", value: { length: 6, width: 8 } },
+    ];
+  }
+  if (name.includes("bed") || name.includes("master") || name.includes("guest")) {
+    return [
+      { label: "10 × 12", value: { length: 10, width: 12 } },
+      { label: "12 × 14", value: { length: 12, width: 14 } },
+      { label: "14 × 16 (primary)", value: { length: 14, width: 16 } },
+    ];
+  }
+  if (name.includes("kitchen") || name.includes("dining") || name.includes("living") || name.includes("family")) {
+    return [
+      { label: "12 × 14", value: { length: 12, width: 14 } },
+      { label: "14 × 16", value: { length: 14, width: 16 } },
+      { label: "16 × 20", value: { length: 16, width: 20 } },
+    ];
+  }
+  return [
+    { label: "10 × 12", value: { length: 10, width: 12 } },
+    { label: "12 × 14", value: { length: 12, width: 14 } },
+    { label: "14 × 16", value: { length: 14, width: 16 } },
+  ];
+}
 
-    // Also flag rooms with doors enabled but a zero door count
-    const missingDoorGaps = rooms
-      .map((r, idx) => ({ r, idx }))
-      .filter(({ r }) => (r.type || "room") === "room")
-      .filter(({ r }) => r.doors?.enabled !== false && (!r.doors?.count || r.doors.count === 0))
-      .map(({ r }) => `"${r.name || "Unnamed room"}" has doors enabled but no door count`);
+// Build the ordered question queue: mandatory dim/door gaps first, then
+// parser hints. Each entry carries an optional predicate(rooms)=>bool that's
+// true while the question is still unanswered — used to silently drop items
+// from the queue when a freeform answer resolved more than just the active
+// one. dim/door predicates match by room name (robust to index shifts from
+// adds/removes), parser hints have no predicate (stay until user touches them).
+function buildClarifyQueue(rooms, hints) {
+  const queue = [];
 
-    const parserHints = initialHints.slice(0, 6).map((h) => h.prompt);
-    const allGaps = [...missingDimGaps, ...missingDoorGaps, ...parserHints];
-
-    const opening = allGaps.length > 0
-      ? `I parsed your input. A few things to confirm:\n\n${allGaps.map((g, i) => `${i + 1}. ${g}`).join("\n")}\n\nAnswer any of these or change anything else. Say things like "bathroom is 7×10", "all walls are 2 coats", or "remove the dining room".`
-      : `I parsed your input cleanly. Tell me anything you want to change — "1 coat on all doors", "remove the master bath", "kitchen is 14x16", "add a hall closet 6x4", etc.`;
-    return [{ role: "assistant", text: opening, suggestions: initialHints.slice(0, 6) }];
+  rooms.forEach((r, idx) => {
+    if ((r?.type || "room") !== "room") return;
+    if (r.length && r.width && r.length !== 0 && r.width !== 0) return;
+    const name = r.name || "Unnamed room";
+    queue.push({
+      id: `dim-${idx}-${name}`,
+      prompt: `"${name}" is missing length × width — what are the dimensions?`,
+      options: clarifyDimChips(r),
+      itemIndex: idx,
+      roomName: name,
+      source: "dim",
+      predicate: (cur) => {
+        const room = (cur || []).find((rr) => (rr?.name || "") === name && (rr?.type || "room") === "room");
+        if (!room) return false;
+        return !room.length || !room.width || room.length === 0 || room.width === 0;
+      },
+    });
   });
+
+  rooms.forEach((r, idx) => {
+    if ((r?.type || "room") !== "room") return;
+    if (r.doors?.enabled === false) return;
+    if (r.doors?.count > 0) return;
+    const name = r.name || "Unnamed room";
+    queue.push({
+      id: `door-${idx}-${name}`,
+      prompt: `"${name}" has doors enabled but no door count — how many?`,
+      options: [
+        { label: "1 door", value: { doors: { count: 1 } } },
+        { label: "2 doors", value: { doors: { count: 2 } } },
+        { label: "3 doors", value: { doors: { count: 3 } } },
+      ],
+      itemIndex: idx,
+      roomName: name,
+      source: "door",
+      predicate: (cur) => {
+        const room = (cur || []).find((rr) => (rr?.name || "") === name && (rr?.type || "room") === "room");
+        if (!room) return false;
+        if (room.doors?.enabled === false) return false;
+        return !(room.doors?.count > 0);
+      },
+    });
+  });
+
+  (hints || []).slice(0, 6).forEach((h, i) => {
+    const opts = (h.options || []).filter((o) => o.value !== "__custom__").slice(0, 4);
+    queue.push({
+      id: `hint-${h.id || i}`,
+      prompt: h.prompt,
+      options: opts,
+      itemIndex: h.itemIndex,
+      source: "parserHint",
+      hint: h,
+    });
+  });
+
+  return queue;
+}
+
+function ClarifyChat({ initialHints, rooms, library, applyToItem, applyMultiPatch, onQueueChange }) {
+  // Past Q&A exchanges live in `messages`. The currently-active question lives
+  // separately at queue[0] and renders as a special last bubble with chips +
+  // Skip. When the user answers (chip / text / skip), the exchange gets pushed
+  // to messages and the queue advances.
+  const [messages, setMessages] = useState([]);
+  const [queue, setQueue] = useState(() => buildClarifyQueue(rooms, initialHints));
   const [inputText, setInputText] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
   const scrollerRef = useRef(null);
 
-  // Auto-scroll to bottom whenever messages change
+  // Welcome line when there are no gaps to walk through.
+  useEffect(() => {
+    if (queue.length === 0 && messages.length === 0) {
+      setMessages([{
+        role: "assistant",
+        text: `I parsed your input cleanly. Tell me anything you want to change — "1 coat on all doors", "remove the master bath", "kitchen is 14x16", "add a hall closet 6x4", etc.`,
+      }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tell the parent how many questions remain — gates the Build Scope button.
+  useEffect(() => {
+    if (typeof onQueueChange === "function") onQueueChange(queue.length);
+  }, [queue.length, onQueueChange]);
+
+  // Auto-scroll on any visible change.
   useEffect(() => {
     if (scrollerRef.current) {
       scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
     }
-  }, [messages, thinking]);
+  }, [messages, queue.length, thinking]);
 
-  // ── Click a suggestion chip from the opening hint list. Inserts the hint
-  //    text into the input box (user can edit before sending) rather than
-  //    auto-sending — gives them a chance to refine.
-  function useSuggestion(hint) {
-    // If the hint has preset options, use the first non-custom option's label
-    // as a starter; otherwise just echo the prompt text.
-    const opts = (hint.options || []).filter((o) => o.value !== "__custom__");
-    if (opts.length > 0) {
-      setInputText(opts[0].label);
-    } else {
-      setInputText(hint.prompt);
+  // After any rooms change, prune queue items whose predicate says they're
+  // resolved. This is what powers "type several answers at once, advance past
+  // multiple questions." Parser hints (no predicate) stick around.
+  useEffect(() => {
+    setQueue((prev) => prev.filter((q) => !q.predicate || q.predicate(rooms)));
+  }, [rooms]);
+
+  const active = queue[0] || null;
+
+  // Push the answered exchange into the message log and pop the active item.
+  function pushAnsweredAndPop(activeItem, userText, replyText) {
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: activeItem.prompt },
+      { role: "user", text: userText },
+      { role: "assistant", text: replyText },
+    ]);
+    setQueue((prev) => prev.slice(1));
+  }
+
+  // ── Chip click — apply via the existing pattern-match path. Does NOT route
+  //    through the API engine; the chip already carries a patch directive.
+  function handleChip(option) {
+    if (!active || thinking) return;
+    if (option.value === "__custom__") return;
+
+    // Resolve the current index by name for dim/door questions in case rooms
+    // shifted since the queue was built. Parser hints fall back to the stored
+    // itemIndex from the hint payload.
+    let itemIdx = active.itemIndex;
+    if (active.roomName) {
+      const found = rooms.findIndex((r) => (r?.name || "") === active.roomName);
+      if (found >= 0) itemIdx = found;
     }
+
+    let changedCount = 0;
+    const val = option.value;
+    if (val && typeof val === "object" && Array.isArray(val._multiPatch)) {
+      changedCount = applyMultiPatch ? applyMultiPatch(val._multiPatch) : 0;
+    } else if (val && typeof val === "object" && itemIdx != null && itemIdx >= 0) {
+      applyToItem(itemIdx, val);
+      changedCount = 1;
+    } else if (val && typeof val === "object" && applyMultiPatch) {
+      changedCount = applyMultiPatch([{ patch: val }]);
+    }
+
+    const confirm = changedCount > 0
+      ? `Updated ${changedCount} item${changedCount === 1 ? "" : "s"}.`
+      : "Noted.";
+    pushAnsweredAndPop(active, option.label, confirm);
+  }
+
+  // ── Skip — rotate the active question to the end of the queue.
+  function handleSkip() {
+    if (!active || thinking) return;
+    const skipped = active;
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: skipped.prompt },
+      { role: "user", text: "Skip for now." },
+      { role: "assistant", text: "Coming back to it." },
+    ]);
+    setQueue((prev) => [...prev.slice(1), skipped]);
   }
 
   // ── Send the current input as a user message. Calls Claude to interpret +
@@ -2980,20 +3146,18 @@ function ClarifyChat({ initialHints, rooms, library, applyToItem, applyMultiPatc
     setInputText("");
     setError("");
 
-    const newUserMsg = { role: "user", text: userText };
-    const conversationSoFar = [...messages, newUserMsg];
-    setMessages(conversationSoFar);
-
     setThinking(true);
     try {
       // Build a compact room digest. Limit to 40 items for prompt size.
       const roomDigest = rooms.slice(0, 40).map((r, idx) => formatItemDigest(r, idx)).join("\n");
 
-      // Compress message history for the API (keep prompts/replies, drop suggestions).
-      const apiHistory = conversationSoFar.map((m) => ({
-        role: m.role,
-        content: m.text,
-      }));
+      // Send the conversation as text-only history. Include the active prompt
+      // (if any) as the latest assistant turn so the model has context.
+      const apiHistory = [
+        ...messages.map((m) => ({ role: m.role, content: m.text })),
+        ...(active ? [{ role: "assistant", content: active.prompt }] : []),
+        { role: "user", content: userText },
+      ];
 
       const systemContext = `You are an interactive estimating assistant inside a painting takeoff tool. You're talking to a contractor reviewing items parsed from their job walk. Your job: interpret what they say and translate it into action directives that the app will execute, then reply naturally about what you did.
 
@@ -3129,21 +3293,34 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
         }
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
+      // Push the answered exchange and advance the queue. The rooms-changed
+      // useEffect will prune any other items the user implicitly resolved.
+      if (active) {
+        pushAnsweredAndPop(active, userText, reply);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", text: userText },
+          { role: "assistant", text: reply },
+        ]);
+      }
     } catch (e) {
       setError(e.message || "Something went wrong");
-      setMessages((prev) => [...prev, { role: "assistant", text: `(Error: ${e.message}. Try again or use one of the buttons below.)` }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", text: userText },
+        { role: "assistant", text: `(Error: ${e.message}. Try again or use a chip above.)` },
+      ]);
     } finally {
       setThinking(false);
     }
   }
 
-  // ── Reset the conversation (keeps changes already applied to items).
+  // ── Reset the conversation. Re-derives the queue from current rooms +
+  //    initialHints so already-applied changes don't re-surface as questions.
   function resetChat() {
-    setMessages([{
-      role: "assistant",
-      text: "Cleared. What would you like to change?",
-    }]);
+    setMessages([]);
+    setQueue(buildClarifyQueue(rooms, initialHints));
     setInputText("");
     setError("");
   }
@@ -3168,7 +3345,11 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
         fontSize: 11,
         color: "var(--color-text-secondary, #666)",
       }}>
-        <span>Talk to your estimate — items update below as you go</span>
+        <span>
+          {queue.length > 0
+            ? `Clarify — ${queue.length} question${queue.length === 1 ? "" : "s"} remaining`
+            : "Clarify — all answered. Items update below as you go."}
+        </span>
         <button
           onClick={resetChat}
           style={{
@@ -3186,44 +3367,58 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
         </button>
       </div>
 
-      {/* Message log */}
+      {/* Message log + active question card */}
       <div ref={scrollerRef} style={{ padding: 12, maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
         {messages.map((m, i) => (
-          <div key={i}>
-            <ChatBubble message={m} />
-            {/* Suggestion chips attached to assistant opening message */}
-            {m.role === "assistant" && m.suggestions && m.suggestions.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, marginLeft: 4 }}>
-                {m.suggestions.map((hint, j) => {
-                  const opts = (hint.options || []).filter((o) => o.value !== "__custom__");
-                  // Show up to 2 quick-pick chips per hint, plus a "details" chip
-                  // that just loads the hint text into the input
-                  return (
-                    <button
-                      key={j}
-                      onClick={() => useSuggestion(hint)}
-                      disabled={thinking}
-                      title={hint.prompt}
-                      style={{
-                        padding: "4px 10px",
-                        fontSize: 11,
-                        borderRadius: 14,
-                        border: "0.5px dashed var(--color-border-secondary, rgba(0,0,0,0.3))",
-                        background: "transparent",
-                        cursor: thinking ? "not-allowed" : "pointer",
-                        color: "var(--color-text-secondary, #666)",
-                        fontFamily: "inherit",
-                        opacity: thinking ? 0.5 : 1,
-                      }}
-                    >
-                      {opts[0]?.label || "Address #" + (j + 1)}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <ChatBubble key={i} message={m} />
         ))}
+
+        {/* Active question — chips + Skip rendered as the latest assistant turn. */}
+        {active && (
+          <div>
+            <ChatBubble message={{ role: "assistant", text: active.prompt }} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, marginLeft: 4 }}>
+              {active.options.map((opt, j) => (
+                <button
+                  key={j}
+                  onClick={() => handleChip(opt)}
+                  disabled={thinking}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    borderRadius: 14,
+                    border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))",
+                    background: "transparent",
+                    cursor: thinking ? "not-allowed" : "pointer",
+                    color: "inherit",
+                    fontFamily: "inherit",
+                    opacity: thinking ? 0.5 : 1,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <button
+                onClick={handleSkip}
+                disabled={thinking}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  borderRadius: 14,
+                  border: "0.5px dashed var(--color-border-secondary, rgba(0,0,0,0.3))",
+                  background: "transparent",
+                  cursor: thinking ? "not-allowed" : "pointer",
+                  color: "var(--color-text-secondary, #666)",
+                  fontFamily: "inherit",
+                  opacity: thinking ? 0.5 : 1,
+                }}
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
         {thinking && (
           <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
             Thinking…
@@ -3239,7 +3434,9 @@ Keep replies short — 1-2 sentences. The user can see the items update live bel
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
             disabled={thinking}
-            placeholder='Say anything — "all walls 2 coats", "remove dining room", "add a closet 6x4"'
+            placeholder={active
+              ? "Type your answer (or tap a chip above)…"
+              : `Say anything — "all walls 2 coats", "remove dining room", "add a closet 6x4"`}
             style={{
               flex: 1,
               padding: "8px 10px",
