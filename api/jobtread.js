@@ -275,6 +275,59 @@ const ACTIONS = {
       return paveCall(q, grantKey);
     },
   },
+
+  create_document: {
+    required: ['jobId', 'type'],
+    // Create a JobTread document (e.g. customer-facing proposal). Barebones —
+    // line items are added via update_document afterwards. type is typically
+    // "customerOrder" for proposals. taxRate/dueDays default to caller's
+    // values (the chat sends 0 / 30 unless the user overrides).
+    async execute(payload, grantKey) {
+      const {
+        jobId, type, name, fromAccountId, toAccountId,
+        taxRate, dueDays, description, footer, issueDate,
+      } = payload;
+      const args = { jobId, type };
+      if (name) args.name = name;
+      if (fromAccountId) args.fromAccountId = fromAccountId;
+      if (toAccountId) args.toAccountId = toAccountId;
+      if (taxRate != null) args.taxRate = taxRate;
+      if (dueDays != null) args.dueDays = dueDays;
+      if (description) args.description = description;
+      if (footer) args.footer = footer;
+      if (issueDate) args.issueDate = issueDate;
+
+      const q = { createDocument: { $: args, createdDocument: { id: {}, name: {} } } };
+      return paveCall(q, grantKey);
+    },
+  },
+
+  update_document: {
+    required: ['documentId'],
+    // Update an existing document. Any subset of fields may be passed; only
+    // those present are forwarded. lineItems mirror the budget via
+    // jobCostItemId (NOT sourceCostItemId, NOT organizationCostItemId). If
+    // jobCostItemId is unknown, omit it and pass plain name/quantity/unitPrice.
+    async execute(payload, grantKey) {
+      const {
+        documentId, name, fromAccountId, toAccountId,
+        taxRate, dueDays, description, footer, issueDate, lineItems,
+      } = payload;
+      const args = { id: documentId };
+      if (name) args.name = name;
+      if (fromAccountId) args.fromAccountId = fromAccountId;
+      if (toAccountId) args.toAccountId = toAccountId;
+      if (taxRate != null) args.taxRate = taxRate;
+      if (dueDays != null) args.dueDays = dueDays;
+      if (description) args.description = description;
+      if (footer) args.footer = footer;
+      if (issueDate) args.issueDate = issueDate;
+      if (Array.isArray(lineItems)) args.lineItems = lineItems;
+
+      const q = { updateDocument: { $: args, updatedDocument: { id: {}, name: {} } } };
+      return paveCall(q, grantKey);
+    },
+  },
 };
 
 // ── HTTP handler ──────────────────────────────────────────────────────────

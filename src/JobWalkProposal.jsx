@@ -1352,9 +1352,10 @@ export default function App() {
   const [customScope, setCustomScope] = useState({}); // { groupKey: [strings] }
   const [customExclusions, setCustomExclusions] = useState([]);
   const [buildStarted, setBuildStarted] = useState(false);          // Step 3 — gates the BuildChat panel
-  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt — feeds Scope
+  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt — feeds Scope + DocumentChat
   const [budgetConfirmed, setBudgetConfirmed] = useState(false);    // "Budget looks good" gate clicked
   const [scopeGroups, setScopeGroups] = useState([]);               // Cost-group keys resolved at categorize time (budget → fallback to parsed)
+  const [documentStarted, setDocumentStarted] = useState(false);    // Step 5 — gates the DocumentChat panel
 
   // Load library from storage on mount
   useEffect(() => {
@@ -2442,11 +2443,26 @@ Once the above is confirmed, use the JobTread MCP to:
             </div>
           )}
 
-          {/* Step 5: Export (manual copy/payload) */}
+          {/* Step 5: Export — DocumentChat panel + manual-copy fallback */}
           {step === 5 && (
             <div style={card}>
-              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>Export</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Copy the JSON payload and paste it into a new chat to build the budget and push the proposal to JobTread.</p>
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Create Proposal Document</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>
+                Build the customer-facing document directly in JobTread. The chat picks up the budget you just built and mirrors it as line items.
+              </p>
+              {!documentStarted ? (
+                <button style={btnPrimary} onClick={() => setDocumentStarted(true)} disabled={!builtBudget}>
+                  {builtBudget ? "Start Document" : "Start Document (build the budget first)"}
+                </button>
+              ) : (
+                <DocumentChat payload={buildPayload()} builtBudget={builtBudget} />
+              )}
+
+              <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
+
+              {/* Manual export fallback — kept available as an escape hatch. */}
+              <h2 style={{ fontSize: 16, fontWeight: 500, margin: "0 0 8px" }}>Manual Export (fallback)</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>If the chat hits an issue, you can still copy the JSON payload and paste it into a separate chat.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
                 <button style={btnPrimary} onClick={copyPayload}>
                   📋 Copy Full Payload (for chat)
@@ -4141,6 +4157,360 @@ ${JSON.stringify(payload, null, 2)}`;
             onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
             disabled={thinking}
             placeholder='e.g. "Customer is Smith Family, job at 123 Oak Street"'
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              fontSize: 13,
+              border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))",
+              borderRadius: 6,
+              background: "transparent",
+              color: "inherit",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={thinking || !inputText.trim()}
+            style={{
+              padding: "8px 14px",
+              fontSize: 12,
+              borderRadius: 6,
+              border: "0.5px solid #2C1654",
+              background: inputText.trim() && !thinking ? "#2C1654" : "transparent",
+              color: inputText.trim() && !thinking ? "#fff" : "var(--color-text-secondary, #888)",
+              cursor: thinking || !inputText.trim() ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontWeight: 500,
+            }}
+          >
+            Send
+          </button>
+        </div>
+        {error && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--color-text-danger, #c33)" }}>
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// DocumentChat — Phase 2: in-app proposal document via /api/jobtread (native tool use)
+// ============================================================================
+// Clone of BuildChat's pattern (same /api/chat loop, contextRef + system-prompt
+// status convenience, same /api/jobtread tool dispatch) but with two
+// document-shaped executors. Fed by the in-memory builtBudget snapshot
+// (jobId + costGroupIds) so the model can mirror what BuildChat created.
+
+const DOCUMENT_CHAT_TOOLS = [
+  {
+    name: "create_document",
+    description: "Create a JobTread document (proposal). Barebones — line items are added afterwards via update_document. type is typically 'customerOrder' for customer-facing proposals.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
+        type: { type: "string", description: "Document type — usually 'customerOrder' for customer-facing proposals." },
+        name: { type: "string", description: "Document name (e.g. 'Smith Family — Interior Repaint Proposal'). Optional; JT defaults to type + date." },
+        fromAccountId: { type: "string", description: "Preparer's JT account ID. If unknown, omit and add later via update_document." },
+        toAccountId: { type: "string", description: "Recipient's JT account ID — defaults to the customer's primaryContact. If unknown, omit and add later." },
+        taxRate: { type: "number", description: "Tax rate (0..1). Defaults to 0 — paint proposals usually have no tax line." },
+        dueDays: { type: "number", description: "Days until the document is due/expires. Defaults to 30." },
+        description: { type: "string", description: "Scope-of-work text. Goes into the document body." },
+        footer: { type: "string", description: "Exclusions text. Goes at the bottom of the document." },
+        issueDate: { type: "string", description: "ISO date the document is issued (optional)." },
+      },
+      required: ["jobId", "type"],
+    },
+  },
+  {
+    name: "update_document",
+    description: "Update an existing JobTread document. Any subset of fields may be passed — only the present ones are sent. lineItems reference jobCostItemId (NOT sourceCostItemId, NOT organizationCostItemId); omit it for free-text lines.",
+    input_schema: {
+      type: "object",
+      properties: {
+        documentId: { type: "string", description: "The document's JobTread ID (from create_document's createdDocument.id)." },
+        name: { type: "string", description: "Updated document name." },
+        fromAccountId: { type: "string", description: "Updated preparer account ID." },
+        toAccountId: { type: "string", description: "Updated recipient account ID." },
+        taxRate: { type: "number", description: "Updated tax rate (0..1)." },
+        dueDays: { type: "number", description: "Updated days until due." },
+        description: { type: "string", description: "Updated scope-of-work text." },
+        footer: { type: "string", description: "Updated exclusions text." },
+        issueDate: { type: "string", description: "Updated issue date (ISO)." },
+        lineItems: {
+          type: "array",
+          description: "Document line items. Mirror the budget via jobCostItemId where possible; omit it for free-text lines.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Line item name." },
+              description: { type: "string", description: "Optional longer description." },
+              jobCostItemId: { type: "string", description: "Links the line to an existing cost item on the job. Use this — NOT sourceCostItemId, NOT organizationCostItemId — when mirroring the built budget." },
+              quantity: { type: "number", description: "Quantity." },
+              unitCost: { type: "number", description: "Per-unit cost." },
+              unitPrice: { type: "number", description: "Per-unit price (what the customer sees)." },
+            },
+          },
+        },
+      },
+      required: ["documentId"],
+    },
+  },
+];
+
+function DocumentChat({ payload, builtBudget }) {
+  // Same API-compatible shape as BuildChat — { role, content } where content
+  // is a string OR array of typed blocks (text / tool_use / tool_result).
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content: "Ready to create the customer-facing proposal document. Who's preparing this one — Peter, Lyric, or Kareem? (Or another teammate — let me know who.)",
+    },
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [error, setError] = useState("");
+  const scrollerRef = useRef(null);
+
+  // Document context — IDs accumulated as tools execute. Kept in a ref so the
+  // system prompt re-reads the latest values on each callClaude.
+  const contextRef = useRef({
+    documentId: null,
+    preparer: null,        // { name, accountId? } — filled as the user tells us
+    recipient: null,       // { name, accountId? }
+    errors: [],
+  });
+
+  useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    }
+  }, [messages, thinking]);
+
+  function buildSystemPrompt() {
+    return `You are a JobTread document assistant for Purple Painting Co. Your job is to create and edit the customer-facing proposal document by calling the provided tools.
+
+PRINCIPLES
+═══════════════════
+- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
+- Tools available: create_document, update_document. Each tool's input schema describes its required and optional fields.
+- When you need a decision from the user (preparer, recipient, edits), reply with text and NO tool calls. Otherwise prefer calling tools over describing what you would do.
+- Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
+- If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
+
+IDS YOU'LL NEED
+═══════════════════
+ORG: 22PWNY9u7qZd
+JOB: ${builtBudget?.jobId || "(not built yet — ask the user for the job ID)"}
+CUSTOMER: ${builtBudget?.customerId || "(unknown — ask the user)"}
+TYPE: use "customerOrder" for customer-facing proposals.
+
+CRITICAL DOCUMENT RULES
+═══════════════════
+1. Line items in update_document reference jobCostItemId — NOT sourceCostItemId, NOT organizationCostItemId. If you don't yet know the cost-item IDs for the job (they aren't in builtBudget — that snapshot only carries cost-GROUP IDs), omit jobCostItemId and pass plain text line items (name + description + quantity + unitPrice). The user can wire the linkage later.
+2. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage).
+3. dueDays defaults to 30.
+4. Document type is "customerOrder" for proposals.
+5. description = scope of work (selected scope text from payload). footer = exclusions text.
+
+BUILD SEQUENCE
+═══════════════════
+Stage A — Identify parties:
+1. Ask the user: who is preparing this proposal? Suggest Peter / Lyric / Kareem (or another teammate). The user will give you a NAME — you may or may not have the JT account ID. If you don't have the ID, proceed without fromAccountId on create_document and tell the user "I'll create the doc without the preparer linked; share Peter's JT account ID when you have it and I'll patch it via update_document."
+2. Default recipient = the customer's primaryContact. Confirm with the user. Same fallback as above for toAccountId.
+
+Stage B — Create barebones document:
+3. Call create_document with: jobId (from JOB above), type "customerOrder", taxRate 0, dueDays 30, description (composed from payload.scope + payload.exclusions structure), footer (payload.exclusions list), fromAccountId/toAccountId if known.
+
+Stage C — Mirror the budget as line items:
+4. Call update_document with lineItems mirroring builtBudget.costGroupIds. Without jobCostItemId, lines are free-text:
+     { name: "<group name>", quantity: 1, unitPrice: <price>, description: "<optional>" }
+   Use the costGroupIds names as the line-item names — that's what the customer will see.
+
+Stage D — Conversational edits:
+5. Honor user-driven edits via update_document. Examples:
+   - "change the footer" → update_document with new footer
+   - "set Peter as preparer" → update_document with new fromAccountId (ask for the ID if unknown)
+   - "drop that line" → update_document with the reduced lineItems array
+
+Stage E — Summary:
+6. After the document is created and any edits applied, reply with EXACTLY this structure (no pipe "|" table syntax, no rehash):
+
+## ✅ Document Ready
+
+**Job:** <job name>
+**Document:** <document name>
+**Preparer:** <preparer name or "not yet linked">
+**Recipient:** <recipient name or "not yet linked">
+
+**Line Items (<count>):**
+- <item name> — <quantity> @ <unitPrice>
+- <item name> — <quantity> @ <unitPrice>
+(one bullet per line item)
+
+**[Open document in JobTread](https://app.jobtread.com/jobs/<jobId>/documents/<documentId>)**
+
+CURRENT DOCUMENT CONTEXT
+═══════════════════
+${JSON.stringify({
+  documentId: contextRef.current.documentId,
+  preparer: contextRef.current.preparer,
+  recipient: contextRef.current.recipient,
+  recentErrors: contextRef.current.errors.slice(-3),
+}, null, 2)}
+
+BUILT BUDGET (from BuildChat)
+═══════════════════
+${JSON.stringify(builtBudget || null, null, 2)}
+
+PAYLOAD (scope + exclusions + tier + line items)
+═══════════════════
+${JSON.stringify(payload, null, 2)}`;
+  }
+
+  async function executeAction(name, input) {
+    let result;
+    try {
+      const resp = await fetch("/api/jobtread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: name, payload: input }),
+      });
+      result = await resp.json();
+      if (!resp.ok) {
+        contextRef.current.errors.push({ action: name, status: resp.status, error: result });
+      }
+    } catch (e) {
+      result = { error: "fetch_failed", message: e.message };
+      contextRef.current.errors.push({ action: name, error: e.message });
+    }
+
+    const ctx = contextRef.current;
+    if (name === "create_document") {
+      const id = result?.createDocument?.createdDocument?.id;
+      if (id) ctx.documentId = id;
+    }
+
+    return result;
+  }
+
+  function toApiMessages(history) {
+    return history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  async function callClaude(history) {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        system: buildSystemPrompt(),
+        tools: DOCUMENT_CHAT_TOOLS,
+        messages: toApiMessages(history),
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      throw new Error(`/api/chat HTTP ${resp.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.type === "error" || data.error) {
+      throw new Error(data.error?.message || "API error");
+    }
+    return data;
+  }
+
+  async function sendMessage() {
+    if (!inputText.trim() || thinking) return;
+    const userText = inputText.trim();
+    setInputText("");
+    setError("");
+
+    let history = [...messages, { role: "user", content: userText }];
+    setMessages(history);
+    setThinking(true);
+
+    const MAX_STEPS = 8;
+    try {
+      for (let step = 0; step < MAX_STEPS; step++) {
+        const data = await callClaude(history);
+        history = [...history, { role: "assistant", content: data.content }];
+        setMessages(history);
+
+        if (data.stop_reason !== "tool_use") {
+          return;
+        }
+
+        const toolUseBlocks = (data.content || []).filter((b) => b.type === "tool_use");
+        const toolResultBlocks = [];
+        for (const block of toolUseBlocks) {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await executeAction(block.name, block.input);
+          toolResultBlocks.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        }
+        history = [...history, { role: "user", content: toolResultBlocks }];
+        setMessages(history);
+      }
+      setMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps — pausing. What would you like to do?" }]);
+    } catch (e) {
+      setError(e.message || "Something went wrong");
+      setMessages((prev) => [...prev, { role: "assistant", content: `(Error: ${e.message})` }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return (
+    <div style={{
+      border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+      borderRadius: 8,
+      background: "var(--color-background-primary, #fff)",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "8px 12px",
+        background: "var(--color-background-secondary, #f3f3f0)",
+        borderBottom: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+        fontSize: 11,
+        color: "var(--color-text-secondary, #666)",
+      }}>
+        <span>Creating document in JobTread</span>
+      </div>
+
+      <div ref={scrollerRef} style={{ padding: 12, maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.map((m, i) => {
+          const text = buildChatDisplayText(m);
+          if (!text) return null;
+          return <ChatBubble key={i} message={{ role: m.role, text }} />;
+        })}
+        {thinking && (
+          <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
+            Thinking…
+          </div>
+        )}
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", padding: 12 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
+            disabled={thinking}
+            placeholder='e.g. "Peter is preparing, send to the primary contact"'
             style={{
               flex: 1,
               padding: "8px 10px",
