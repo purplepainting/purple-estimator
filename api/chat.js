@@ -60,13 +60,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'invalid_json', message: err.message, preview: rawBody.slice(0, 200) });
   }
 
-  const { model, max_tokens, system, messages } = body || {};
+  const { model, max_tokens, system, messages, tools } = body || {};
   if (!model) return res.status(400).json({ error: 'Missing required field: model' });
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Missing or empty required field: messages' });
   }
 
-  console.log('chat proxy: model:', model, 'max_tokens:', max_tokens, 'msg_count:', messages.length);
+  console.log('chat proxy: model:', model, 'max_tokens:', max_tokens, 'msg_count:', messages.length, 'tool_count:', Array.isArray(tools) ? tools.length : 0);
 
   try {
     const upstream = await fetch(ANTHROPIC_API_URL, {
@@ -80,6 +80,7 @@ export default async function handler(req, res) {
         model,
         max_tokens: max_tokens ?? 4096,
         ...(system ? { system } : {}),
+        ...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
         messages,
       }),
     });
