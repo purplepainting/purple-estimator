@@ -3324,7 +3324,7 @@ function BuildChat({ payload }) {
 
 RESPONSE FORMAT
 ═══════════════════
-Respond with ONLY a JSON object — no preamble, no markdown fences:
+Respond with ONLY the raw JSON object — no prose, no markdown fences, no text before or after. Your first character must be { and your last character must be }:
 {
   "actions": [ { "name": "<actionName>", "payload": {...} }, ... ],
   "reply": "<message shown to the user>"
@@ -3501,16 +3501,31 @@ ${JSON.stringify(payload, null, 2)}`;
     const textBlock = data.content?.find((c) => c.type === "text");
     if (!textBlock) throw new Error("No text in response");
     const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
+
+    // Robust JSON extraction in three tiers:
+    //   1) Fast path — the whole string parses cleanly.
+    //   2) If Sonnet wraps the JSON in conversational prose, slice from the
+    //      first "{" to the last "}" and try again. (This is what causes
+    //      JSON.parse to throw — and what drops every action on the floor.)
+    //   3) If both fail, fall back to a pure reply so the user at least sees
+    //      Claude's text instead of a silent stall.
+    let parsed = null;
     try {
-      const parsed = JSON.parse(cleaned);
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const first = cleaned.indexOf("{");
+      const last = cleaned.lastIndexOf("}");
+      if (first >= 0 && last > first) {
+        try { parsed = JSON.parse(cleaned.slice(first, last + 1)); } catch { /* fall through */ }
+      }
+    }
+    if (parsed) {
       return {
         actions: Array.isArray(parsed.actions) ? parsed.actions : [],
         reply: typeof parsed.reply === "string" ? parsed.reply : "",
       };
-    } catch {
-      // Model returned non-JSON — treat as a pure reply.
-      return { actions: [], reply: cleaned.slice(0, 1000) };
     }
+    return { actions: [], reply: cleaned.slice(0, 1000) };
   }
 
   async function sendMessage() {
