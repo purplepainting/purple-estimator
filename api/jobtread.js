@@ -180,20 +180,61 @@ const ACTIONS = {
 
   create_job: {
     required: ['customerId', 'name'],
+    // JT's createJob has NO `accountId` / `location` args — it requires
+    // `locationId`. A job attaches to a customer THROUGH a location, so we
+    // createLocation first and then createJob with the returned id.
     async execute(payload, grantKey) {
       const { customerId, name, address, tier, bidOrigin } = payload;
+
+      // Without an address, createLocation has nothing to work with. Return a
+      // structured error so BuildChat can ask the user (mirrors create_customer's
+      // _failed_at pattern).
+      if (!address || !String(address).trim()) {
+        return {
+          _failed_at: 'address_required',
+          _message: 'A full job address (street, city, state, zip) is required to create a job.',
+        };
+      }
+
+      // Step 1 — createLocation under the customer. parseAddress defaults true,
+      // so we send the full address string as one field and let JT split it.
+      const locationResp = await paveCall(
+        {
+          createLocation: {
+            $: { accountId: customerId, address },
+            createdLocation: { id: {}, address: {} },
+          },
+        },
+        grantKey,
+      );
+      const locationId = locationResp?.createLocation?.createdLocation?.id;
+      if (!locationId) {
+        return { _failed_at: 'createLocation', _location_response: locationResp };
+      }
+
+      // Step 2 — createJob attached to that location. Custom-field mapping is
+      // unchanged: tier → Job Type, bidOrigin → How Did Bid Come In.
       const customFieldValues = {};
       const jt = TIER_TO_JOB_TYPE[tier];
       if (jt) customFieldValues[CUSTOM_FIELDS.JOB_TYPE] = jt;
       const bo = BID_ORIGIN_TO_LABEL[bidOrigin];
       if (bo) customFieldValues[CUSTOM_FIELDS.BID_ORIGIN] = bo;
 
-      const args = { accountId: customerId, name };
-      if (address) args.location = { address };
-      if (Object.keys(customFieldValues).length > 0) args.customFieldValues = customFieldValues;
+      const jobArgs = { locationId, name };
+      if (Object.keys(customFieldValues).length > 0) jobArgs.customFieldValues = customFieldValues;
 
-      const q = { createJob: { $: args, createdJob: { id: {}, name: {} } } };
-      return paveCall(q, grantKey);
+      const jobResp = await paveCall(
+        { createJob: { $: jobArgs, createdJob: { id: {}, name: {} } } },
+        grantKey,
+      );
+
+      // Return shape preserves `createJob.createdJob.id` so the frontend
+      // executeAction's ID-extraction path keeps working unchanged.
+      return {
+        createLocation: locationResp.createLocation,
+        createJob: jobResp.createJob ?? null,
+        _location_response_raw: locationResp,
+      };
     },
   },
 
