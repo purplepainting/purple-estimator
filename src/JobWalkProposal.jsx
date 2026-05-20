@@ -886,6 +886,86 @@ ${takeoff}`;
 }
 
 // ============================================================================
+// INPUT AUTO-DETECT (classifier + heuristic fallback) + NOTES OVERLAY
+// ============================================================================
+//
+// Used by parseTranscript() to figure out, for the text-only path, whether
+// the user pasted a voice transcript or terse estimator notes. The classifier
+// is a tiny Haiku call (~200 tokens, 10s timeout). If the call fails, we fall
+// back to a length + filler-word heuristic so the app never gets stuck.
+
+function classifyHeuristic(text) {
+  const t = text || "";
+  const len = t.length;
+  const fillerRe = /\b(um|uh|so|okay|ok|like|y'?know|i mean|basically|right\?|alright)\b/gi;
+  const fillerCount = (t.match(fillerRe) || []).length;
+  if (len > 800 && fillerCount >= 2) {
+    return { mode: "voice", rationale: `length ${len} chars, ${fillerCount} filler words — looks like a transcript` };
+  }
+  return { mode: "notes", rationale: `length ${len} chars, ${fillerCount} filler words — looks like terse notes` };
+}
+
+function buildClassifierPrompt(text) {
+  return `Classify this painting estimator input as either a "voice" transcript or terse "notes". Return ONLY JSON: {"mode":"voice"|"notes","rationale":"short reason"}, no preamble or markdown fences.
+
+"voice" indicators: full sentences, filler words (um, uh, so, okay, like), narrative flow, conversational tone. Usually >800 chars. The estimator was talking through a job walk.
+
+"notes" indicators: terse shorthand, abbreviations, measurements inline (e.g. "3BR ~14x12, 9ft, 2 coats walls"), bullet-like fragments, no filler words. Usually <800 chars.
+
+Input:
+${(text || "").slice(0, 2000)}`;
+}
+
+async function classifyInput(text) {
+  return callClaude({
+    model: "claude-haiku-4-5-20251001",
+    maxTokens: 200,
+    timeoutMs: 10000,
+    prompt: buildClassifierPrompt(text),
+    label: "classify",
+  });
+}
+
+// Notes overlay: when the user uploads a takeoff AND pastes accompanying scope
+// notes, this prompts Claude to adjust the parsed takeoff against the notes.
+// Returns { overrides, additions, exclusions, questions }.
+function buildOverlayPrompt(items, notesText) {
+  const summary = items.map((it, i) => ({
+    index: i,
+    name: it.name,
+    substrate: it.substrate || it.type,
+    quantity: it.quantity,
+    unit: it.unit,
+    coats: it.coats,
+  }));
+  return `You are adjusting a digital takeoff with accompanying estimator notes. Return ONLY JSON: { "overrides": [...], "additions": [...], "exclusions": [...], "questions": [...] }, no preamble or markdown fences.
+
+Existing takeoff items (DO NOT duplicate these — adjust via overrides):
+${JSON.stringify(summary, null, 2)}
+
+Estimator notes overlay:
+${notesText}
+
+Output shape:
+- "overrides":  [{ "itemIndex": <number from above>, "patch": { ...fields to change on that item, e.g. coats, quantity, notes } }]
+- "additions":  [<full new scope item objects>] — ONLY when notes describe substrates not already in the takeoff
+- "exclusions": [<string>, ...] — exclusion lines mentioned in the notes
+- "questions":  [<clarifying question objects, same shape as Notes mode>] — only true ambiguities
+
+Be CONSERVATIVE with additions — most overlay notes adjust existing items (e.g. "1 coat for doors throughout") which should be overrides, not additions. patch.quantity may be a string formula (evaluated with mathjs).`;
+}
+
+async function applyNotesOverlay(items, notesText) {
+  return callClaude({
+    model: "claude-haiku-4-5-20251001",
+    maxTokens: 4000,
+    timeoutMs: 45000,
+    prompt: buildOverlayPrompt(items, notesText),
+    label: "notes overlay",
+  });
+}
+
+// ============================================================================
 // XLSX TAKEOFF PARSER (deterministic — no AI)
 // ============================================================================
 //
@@ -1208,6 +1288,8 @@ export default function App() {
   const [takeoffFile, setTakeoffFile] = useState(null);          // File object
   const [takeoffExclusions, setTakeoffExclusions] = useState([]); // strings pulled from sheet
   const [takeoffWarnings, setTakeoffWarnings] = useState([]);
+  const [notesOverlayText, setNotesOverlayText] = useState(null); // text used for file+text overlay (debug)
+  const [detection, setDetection] = useState(null);                // { mode, rationale } for text-only auto-detect
   const [rooms, setRooms] = useState([]);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -1248,15 +1330,12 @@ export default function App() {
   // CLAUDE API CALLS
   // ============================================================================
 
-  async function parseTranscript() {
-    // Validation differs by mode
-    if (inputMode === "takeoff") {
-      if (!takeoffFile) {
-        setParseError("Choose a .xlsx takeoff file first");
-        return;
-      }
-    } else if (!transcript.trim()) {
-      setParseError("Paste " + (inputMode === "notes" ? "your notes" : "a transcript") + " first");
+  async function parseTranscript(forceMode = null) {
+    const hasFile = !!takeoffFile;
+    const hasText = !!transcript.trim();
+
+    if (!hasFile && !hasText) {
+      setParseError("Upload a takeoff file or paste transcript/notes first.");
       return;
     }
 
@@ -1264,8 +1343,10 @@ export default function App() {
     setParseError("");
 
     try {
-      // ── TAKEOFF MODE: deterministic XLSX parsing, no AI calls ──────────
-      if (inputMode === "takeoff") {
+      // ── FILE PRESENT: takeoff path (with optional notes overlay) ──────
+      // Whether or not there's accompanying text, a file means "takeoff" —
+      // text is treated as an overlay that adjusts the parsed items.
+      if (hasFile) {
         const result = await parseXlsxFile(takeoffFile);
 
         if (result.items.length === 0) {
@@ -1277,25 +1358,66 @@ export default function App() {
           return;
         }
 
-        // Apply parsed items + sheet-derived exclusions
-        const normalized = result.items.map(normalizeItem);
+        let normalized = result.items.map(normalizeItem);
+        let exclusions = [...(result.exclusions || [])];
+        let overlayClarifications = [];
+        let warnings = [...(result.warnings || [])];
+        const overlayText = hasText ? transcript : null;
+
+        if (hasText) {
+          try {
+            const overlay = await applyNotesOverlay(normalized, transcript);
+            (overlay.overrides || []).forEach(({ itemIndex, patch }) => {
+              if (Number.isInteger(itemIndex) && normalized[itemIndex] && patch) {
+                normalized[itemIndex] = applyPatchToItem(normalized[itemIndex], patch);
+              }
+            });
+            const additions = (overlay.additions || []).map(normalizeItem);
+            normalized = normalized.concat(additions);
+            exclusions = exclusions.concat(overlay.exclusions || []);
+            overlayClarifications = overlay.questions || [];
+          } catch (overlayErr) {
+            // Overlay failure is non-fatal — surface as a warning, keep the takeoff
+            warnings = warnings.concat([`Notes overlay failed: ${overlayErr.message}`]);
+          }
+        }
+
+        setInputMode("takeoff");
+        setDetection(null);                       // no banner — file path is unambiguous
+        setNotesOverlayText(overlayText);
         setRooms(normalized);
-        setClarifications([]);                  // no AI questions in takeoff mode
-        setTakeoffExclusions(result.exclusions);
-        setTakeoffWarnings(result.warnings);
+        setClarifications(overlayClarifications);
+        setTakeoffExclusions(exclusions);
+        setTakeoffWarnings(warnings);
         setInferredJobInfo({});
         setInferredFlags({});
         setStep(2);
         return;
       }
 
-      // ── VOICE / NOTES MODE: AI parsing ─────────────────────────────────
+      // ── TEXT ONLY: classifier decides voice vs notes ──────────────────
+      let resolvedMode = forceMode;
+      let rationale = forceMode ? `Manual override → ${forceMode}` : "";
+      if (!resolvedMode) {
+        try {
+          const classified = await classifyInput(transcript);
+          resolvedMode = classified.mode === "voice" ? "voice" : "notes";
+          rationale = classified.rationale || "classifier verdict";
+        } catch (clsErr) {
+          const h = classifyHeuristic(transcript);
+          resolvedMode = h.mode;
+          rationale = `classifier unavailable — ${h.rationale}`;
+        }
+      }
+      setInputMode(resolvedMode);
+      setDetection({ mode: resolvedMode, rationale });
+      setNotesOverlayText(null);
 
       // Notes mode: SINGLE combined call (jobInfo + items in one response on Haiku).
       // This is 2x faster than two parallel calls because we save the round-trip overhead
       // and the model only has to context-switch once. Token budget is generous enough
       // to handle a 10-room job with 3 clarifications.
-      if (inputMode === "notes") {
+      if (resolvedMode === "notes") {
         const combined = await callClaude({
           model: "claude-haiku-4-5-20251001",
           maxTokens: 8000,
@@ -1615,6 +1737,7 @@ Reasoning hints:
           sourceFile: takeoffFile?.name || null,
           parsedExclusions: takeoffExclusions,
           warnings: takeoffWarnings,
+          notesOverlay: notesOverlayText,
         },
       }),
     };
@@ -1745,7 +1868,7 @@ Once the above is confirmed, use the JobTread MCP to:
               // Step 2 is the combined Clarify + Line Items screen (single view).
               // In takeoff mode there's nothing to clarify, so it shows as "Confirm".
               const fullSteps = [
-                { realStep: 1, label: inputMode === "voice" ? "Transcript" : inputMode === "notes" ? "Notes" : "Takeoff" },
+                { realStep: 1, label: "Input" },
                 { realStep: 2, label: inputMode === "takeoff" ? "Confirm" : "Clarify + Items" },
                 { realStep: 3, label: "Scope", hideIn: ["takeoff"] },
                 { realStep: 4, label: "Export" },
@@ -1768,124 +1891,101 @@ Once the above is confirmed, use the JobTread MCP to:
             })()}
           </div>
 
-          {/* Step 1: Transcript */}
+          {/* Step 1: Input (auto-detect — no mode picker)
+              ─────────────────────────────────────────────
+              File only        → takeoff (deterministic XLSX parse)
+              File + text      → takeoff + notes overlay (Haiku adjusts items)
+              Text only        → classifier decides voice vs notes
+              Nothing          → error
+          */}
           {step === 1 && (
             <div style={card}>
-              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 12px" }}>
-                {inputMode === "voice"   ? "Paste Job Walk Transcript" :
-                 inputMode === "notes"   ? "Paste Estimator Notes" :
-                                           "Paste Digital Takeoff"}
-              </h2>
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 12px" }}>Input</h2>
 
-              {/* Input mode toggle */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-                {[
-                  { key: "voice",   label: "🎙️ Voice Transcript", desc: "Otter / phone recording" },
-                  { key: "notes",   label: "📝 Simple Notes",      desc: "Terse estimator shorthand" },
-                  { key: "takeoff", label: "📐 Digital Takeoff",   desc: "Substrate + quantity table" },
-                ].map((mode) => (
-                  <button
-                    key={mode.key}
-                    onClick={() => setInputMode(mode.key)}
-                    style={{
-                      flex: "1 1 200px",
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      border: `0.5px solid ${inputMode === mode.key ? "#2C1654" : "var(--color-border-secondary, rgba(0,0,0,0.3))"}`,
-                      background: inputMode === mode.key ? "#2C1654" : "transparent",
-                      color: inputMode === mode.key ? "#fff" : "inherit",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{mode.label}</div>
-                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{mode.desc}</div>
-                  </button>
-                ))}
-              </div>
-
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 12 }}>
-                {inputMode === "voice" &&
-                  "Paste your transcript (Otter, phone recording, notes). Claude will parse rooms, scope, T&M items, and infer the pricing tier if signals are present. Customer name + address are handled at the chat level."}
-                {inputMode === "notes" &&
-                  "Terse shorthand only — Claude trusts your defaults and asks fewer questions. Customer name + address are handled at the chat level."}
-                {inputMode === "takeoff" &&
-                  "Upload your .xlsx takeoff. Parses your standard BoQ format directly (no AI guesswork). Scope is set to “Per Plans and Specifications”; exclusions are pulled from the spreadsheet if present."}
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 14 }}>
+                Upload a digital takeoff, paste a job-walk transcript or estimator notes, or both. Mode is auto-detected — you can override after parsing.
               </p>
 
-              {inputMode === "takeoff" ? (
-                <div>
-                  {/* File picker */}
-                  <label
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "32px 16px",
-                      border: `1.5px dashed ${takeoffFile ? "#2C1654" : "var(--color-border-secondary, rgba(0,0,0,0.3))"}`,
-                      borderRadius: 10,
-                      cursor: "pointer",
-                      background: takeoffFile ? "rgba(44, 22, 84, 0.04)" : "transparent",
+              <div style={{ display: "flex", gap: 12, alignItems: "stretch", flexWrap: "wrap", marginBottom: 8 }}>
+                {/* File uploader */}
+                <label
+                  style={{
+                    flex: "1 1 280px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: 220,
+                    padding: "24px 16px",
+                    border: `1.5px dashed ${takeoffFile ? "#2C1654" : "var(--color-border-secondary, rgba(0,0,0,0.3))"}`,
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    background: takeoffFile ? "rgba(44, 22, 84, 0.04)" : "transparent",
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        setTakeoffFile(f);
+                        setParseError("");
+                      }
                     }}
-                  >
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) {
-                          setTakeoffFile(f);
-                          setParseError("");
-                        }
-                      }}
-                      style={{ display: "none" }}
-                    />
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>📐</div>
-                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                      {takeoffFile ? takeoffFile.name : "Click to choose a takeoff .xlsx"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--color-text-secondary, #666)" }}>
-                      {takeoffFile
-                        ? `${(takeoffFile.size / 1024).toFixed(1)} KB — click to replace`
-                        : "Purple Painting BoQ format (Description / Unit / Quantity)"}
-                    </div>
-                  </label>
-                </div>
-              ) : (
+                    style={{ display: "none" }}
+                  />
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>📐</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, textAlign: "center" }}>
+                    {takeoffFile ? takeoffFile.name : "Click to upload takeoff .xlsx"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", textAlign: "center" }}>
+                    {takeoffFile
+                      ? `${(takeoffFile.size / 1024).toFixed(1)} KB — click to replace`
+                      : "Optional. Purple Painting BoQ format."}
+                  </div>
+                  {takeoffFile && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTakeoffFile(null); }}
+                      style={{ marginTop: 10, fontSize: 11, background: "transparent", border: "0.5px solid rgba(0,0,0,0.3)", borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}
+                    >
+                      Clear file
+                    </button>
+                  )}
+                </label>
+
+                {/* Text input */}
                 <textarea
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
-                  rows={12}
-                  style={{ width: "100%", padding: 12, borderRadius: 8, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, fontFamily: "var(--font-mono, monospace)", background: "transparent", color: "inherit", resize: "vertical" }}
+                  rows={10}
+                  style={{ flex: "1 1 320px", minHeight: 220, padding: 12, borderRadius: 8, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, fontFamily: "var(--font-mono, monospace)", background: "transparent", color: "inherit", resize: "vertical" }}
                   placeholder={
-                    inputMode === "voice"
-                      ? "Job walk at 1234 Oak Street with Sarah Johnson, sarah@email.com, 805-555-1234. Living room twelve by fourteen, eight foot ceilings..."
-                      : "3BR ~14x12, 9ft ceilings, 2 coats walls\nKitchen + 2 baths, repaint cabinets, stain-to-paint\nDoors and trim only in hall"
+                    takeoffFile
+                      ? "Optional scope notes that adjust this takeoff (e.g. '1 coat for doors throughout, exclude basement')."
+                      : "Paste a job-walk transcript or estimator notes."
                   }
                 />
-              )}
+              </div>
+
               {parseError && <div style={{ color: "var(--color-text-danger, #c33)", fontSize: 13, marginTop: 8 }}>{parseError}</div>}
-              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
                 <button
                   style={btnPrimary}
-                  onClick={parseTranscript}
-                  disabled={parsing || (inputMode === "takeoff" ? !takeoffFile : !transcript.trim())}
+                  onClick={() => parseTranscript()}
+                  disabled={parsing || (!takeoffFile && !transcript.trim())}
                 >
                   {parsing
-                    ? (inputMode === "takeoff" ? "Reading spreadsheet…"
-                      : inputMode === "notes"   ? "Parsing… (~5 sec)"
-                                                : "Parsing… (10–20 sec)")
-                    : inputMode === "takeoff" ? "Parse Takeoff →"
-                    : inputMode === "notes"   ? "Parse Notes →"
-                                              : "Parse Transcript →"}
+                    ? (takeoffFile
+                        ? (transcript.trim() ? "Parsing takeoff + overlay…" : "Reading spreadsheet…")
+                        : "Parsing… (10–20 sec)")
+                    : "Parse →"}
                 </button>
-                {parsing && inputMode !== "takeoff" && (
-                  <div style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", marginTop: 8, fontStyle: "italic" }}>
-                    {inputMode === "notes"
-                      ? "Running on Haiku (fast). Times out at 30 seconds."
-                      : "Running on Sonnet (detailed). Times out at 90 seconds."}
+                {parsing && !takeoffFile && (
+                  <div style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic" }}>
+                    Auto-detecting voice vs notes, then parsing.
                   </div>
                 )}
               </div>
@@ -1903,6 +2003,34 @@ Once the above is confirmed, use the JobTread MCP to:
           */}
           {step === 2 && (
             <div>
+              {/* Auto-detect banner — only shown for the text-only path */}
+              {detection && (
+                <div style={{ ...card, background: "rgba(44, 22, 84, 0.05)", border: "0.5px solid #2C1654", marginBottom: 12 }}>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 13, color: "#2C1654", flex: "1 1 auto" }}>
+                      <strong>Detected:</strong> {detection.mode === "voice" ? "Voice transcript" : "Estimator notes"} — <span style={{ opacity: 0.8 }}>{detection.rationale}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ fontSize: 12, color: "var(--color-text-secondary, #666)" }}>Wrong? Re-parse as:</span>
+                      <button
+                        style={{ ...btn, fontSize: 12, padding: "4px 10px" }}
+                        disabled={parsing || detection.mode === "voice"}
+                        onClick={() => parseTranscript("voice")}
+                      >
+                        Voice
+                      </button>
+                      <button
+                        style={{ ...btn, fontSize: 12, padding: "4px 10px" }}
+                        disabled={parsing || detection.mode === "notes"}
+                        onClick={() => parseTranscript("notes")}
+                      >
+                        Notes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Truncation warning (Notes mode salvage) */}
               {inputMode !== "takeoff" && takeoffWarnings.length > 0 && (
                 <div style={{ ...card, background: "rgba(199, 150, 62, 0.08)", border: "0.5px solid #C8963E" }}>
@@ -2115,7 +2243,7 @@ Once the above is confirmed, use the JobTread MCP to:
               )}
 
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={btn} onClick={() => setStep(1)}>← Back to {inputMode === "takeoff" ? "Takeoff" : inputMode === "notes" ? "Notes" : "Transcript"}</button>
+                <button style={btn} onClick={() => setStep(1)}>← Back to Input</button>
                 {inputMode === "takeoff" ? (
                   <button
                     style={btnPrimary}
