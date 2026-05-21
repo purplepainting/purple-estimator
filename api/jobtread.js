@@ -43,7 +43,7 @@ function tokenizeForSearch(query) {
 function nameLikeCondition(query) {
   const words = tokenizeForSearch(query);
   if (words.length === 1) return ['name', 'like', `%${words[0]}%`];
-  return { or: words.map((w) => ['name', 'like', `%${w}%`]) };
+  return { and: words.map((w) => ['name', 'like', `%${w}%`]) };
 }
 
 export const config = {
