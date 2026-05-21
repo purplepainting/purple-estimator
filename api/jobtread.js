@@ -425,7 +425,17 @@ const ACTIONS = {
       if (toEmailAddress) args.toEmailAddress = toEmailAddress;
       if (Array.isArray(lineItems)) args.lineItems = lineItems;
 
-      const q = { updateDocument: { $: args, updatedDocument: { id: {}, name: {} } } };
+      // updateDocument has NO `updatedDocument` read-back (the field does not
+      // exist on the root mutation type, so reading it returns a GraphQL field
+      // error that masquerades as an "intermittent" failure). Nest the
+      // `document` root field with its own $: { id } to read the updated state
+      // back. price is the live total after JT processes the line items.
+      const q = {
+        updateDocument: {
+          $: args,
+          document: { $: { id: args.id }, id: {}, name: {}, price: {} },
+        },
+      };
       return paveCall(q, grantKey);
     },
   },
