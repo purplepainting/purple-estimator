@@ -4151,21 +4151,6 @@ const BUILD_CHAT_TOOLS = [
     },
   },
   {
-    name: "get_catalog_prices",
-    description: "Look up the live unitCost and unitPrice for one or more org catalog items by their organizationCostItemId. Batch all IDs you need into a single call. Returns the catalog values — multiply each by the tier multiplier before writing onto a cost item.",
-    input_schema: {
-      type: "object",
-      properties: {
-        ids: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of organizationCostItemIds (e.g. ['22PWiSS293E2', '22PWickkTi46']).",
-        },
-      },
-      required: ["ids"],
-    },
-  },
-  {
     name: "search_catalog",
     description: "Search the Purple Painting catalog (Supabase mirror of JobTread) for cost items by keyword. Use this to find organizationCostItemId, costCodeId (code_id), unitId, unitCost, and unitPrice for any substrate BEFORE asking the user. Searches name, code_name, and substrate. Returns up to 25 matches.",
     input_schema: {
@@ -4323,7 +4308,7 @@ Stage B — Top-level structure (create ONLY the side(s) that will hold work):
 5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step — and skip Stage C entirely since there are no rooms to place.
 6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets — the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
 
-Stage C — Rooms (interior). Prices come DIRECTLY from payload.catalog (loaded from the Supabase mirror — the single source of truth for catalog IDs and unit prices). For each cost item, read unitCost / unitPrice off payload.catalog[substrate][coats], multiply each by the tier multiplier, and write the result onto every createCostItem. Do NOT call get_catalog_prices, do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
+Stage C — Rooms (interior). Prices come DIRECTLY from payload.catalog (loaded from the Supabase mirror — the single source of truth for catalog IDs and unit prices). For each cost item, read unitCost / unitPrice off payload.catalog[substrate][coats], multiply each by the tier multiplier, and write the result onto every createCostItem. Do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
 
 For each room in payload.rooms:
 7. Create parent cost group with parentCostGroupId=<Interior.id>.
