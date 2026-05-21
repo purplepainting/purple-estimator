@@ -320,7 +320,7 @@ function applyPatchToItem(item, patch) {
 // CLAUDE API HELPERS (with timeout + retry + clear errors)
 // ============================================================================
 
-async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label = "request" }) {
+async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label = "request", stream = false }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -332,6 +332,11 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
+        // stream:true MUST live INSIDE the body — main.jsx's fetch shim only
+        // forwards `body` (init/headers are dropped to avoid the duplicate
+        // Content-Type crash). The /api/chat proxy reads body.stream and
+        // pipes the upstream SSE back.
+        ...(stream ? { stream: true } : {}),
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -341,21 +346,56 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       throw new Error(`${label} HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-
-    if (data.type === "error" || data.error) {
-      throw new Error(`${label} API error: ${data.error?.message || JSON.stringify(data.error)}`);
+    // Extract `rawText` and `stopReason` from either path. Post-text handling
+    // (fence strip → extractJsonObject → JSON.parse with salvage fallback) is
+    // shared so the two paths can't diverge.
+    let rawText;
+    let stopReason = null;
+    if (stream) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      rawText = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();
+        for (const line of lines) {
+          const s = line.trim();
+          if (!s.startsWith("data:")) continue;
+          const payload = s.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          let evt;
+          try { evt = JSON.parse(payload); } catch { continue; }
+          if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+            rawText += evt.delta.text;
+          } else if (evt.type === "message_delta" && evt.delta?.stop_reason) {
+            stopReason = evt.delta.stop_reason;
+          } else if (evt.type === "error") {
+            throw new Error(`${label} API error: ${evt.error?.message || JSON.stringify(evt.error)}`);
+          }
+        }
+      }
+      if (!rawText) throw new Error(`${label}: no text content in response`);
+    } else {
+      const data = await response.json();
+      if (data.type === "error" || data.error) {
+        throw new Error(`${label} API error: ${data.error?.message || JSON.stringify(data.error)}`);
+      }
+      const textBlock = data.content?.find((c) => c.type === "text");
+      if (!textBlock) throw new Error(`${label}: no text content in response`);
+      rawText = textBlock.text;
+      stopReason = data.stop_reason;
     }
 
-    const textBlock = data.content?.find((c) => c.type === "text");
-    if (!textBlock) throw new Error(`${label}: no text content in response`);
-
-    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
     // Tolerant extraction: pull the {...} span out of whatever wrapper the
     // model emitted (prose preamble like "I'll carefully parse...", leading
     // whitespace, stray heading). JSON.parse + salvage both run on this span.
     const candidate = extractJsonObject(cleaned);
-    const wasTruncated = data.stop_reason === "max_tokens";
+    const wasTruncated = stopReason === "max_tokens";
 
     // Try direct parse first
     try {
@@ -381,6 +421,89 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// Split a long transcript into ~maxChars chunks on timestamp-line boundaries
+// (e.g. "19:29", "34:09" — typical of Otter / voice-to-text exports). Each
+// subsequent chunk gets an overlap: the previous chunk's last block prepended,
+// so a late correction or exclusion doesn't get orphaned. If no timestamps
+// exist, falls back to blank-line paragraph packing. Short input returns
+// [text] so callers can take the single-call path.
+function chunkTranscript(text, maxChars = 6000) {
+  const src = String(text || "");
+  if (src.length <= maxChars) return [src];
+
+  const lines = src.split("\n");
+  const tsRe = /^\s*\d{1,2}:\d{2}\s*$/;
+  const blocks = [];
+  let cur = [];
+  let sawTimestamp = false;
+  for (const ln of lines) {
+    if (tsRe.test(ln)) {
+      sawTimestamp = true;
+      if (cur.length) blocks.push(cur.join("\n"));
+      cur = [ln];
+    } else {
+      cur.push(ln);
+    }
+  }
+  if (cur.length) blocks.push(cur.join("\n"));
+
+  // Fall back to blank-line paragraphs if we found no timestamps.
+  const useBlocks = sawTimestamp && blocks.length >= 2
+    ? blocks
+    : src.split(/\n\s*\n/).filter((p) => p.trim());
+  if (useBlocks.length < 2) return [src];
+
+  // Greedy pack with overlap: never split a block; prepend the previous
+  // chunk's last block to each subsequent chunk.
+  const chunks = [];
+  let acc = [];
+  let accLen = 0;
+  for (const b of useBlocks) {
+    const bLen = b.length + 1; // +1 for joiner
+    if (acc.length > 0 && accLen + bLen > maxChars) {
+      chunks.push(acc.join("\n"));
+      const carryover = acc[acc.length - 1];
+      acc = [carryover];
+      accLen = carryover.length + 1;
+    }
+    acc.push(b);
+    accLen += bLen;
+  }
+  if (acc.length) chunks.push(acc.join("\n"));
+  return chunks;
+}
+
+// Merge per-chunk items-parse results into one { items, questions }. Dedupes
+// items by a stable identity (so overlap-induced duplicates from chunking
+// disappear); questions just concat. Used by the long-transcript items path.
+function mergeItemChunks(perChunk) {
+  const items = [];
+  const questions = [];
+  const seen = new Set();
+  for (const r of perChunk) {
+    const chunkItems = Array.isArray(r) ? r : (r?.items || []);
+    const chunkQuestions = Array.isArray(r) ? [] : (r?.questions || []);
+    for (const it of chunkItems) {
+      const t = it?.type || "room";
+      let key;
+      if (t === "room") {
+        key = JSON.stringify({ t, n: it.name, l: it.length, w: it.width, h: it.height });
+      } else if (t === "scope") {
+        key = JSON.stringify({ t, n: it.name, s: it.substrate, q: it.quantity, u: it.unit });
+      } else if (t === "tm") {
+        key = JSON.stringify({ t, n: it.name, c: it.category, h: it.hours });
+      } else {
+        key = JSON.stringify(it);
+      }
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(it);
+    }
+    questions.push(...chunkQuestions);
+  }
+  return { items, questions };
 }
 
 // Pull the JSON object out of a model response that may have a prose preamble,
@@ -1538,9 +1661,43 @@ export default function App() {
         return;
       }
 
-      // Voice mode: two parallel calls (Haiku for job info, Sonnet for items).
-      // Kept separate because voice transcripts benefit from Sonnet's deeper parsing
-      // and the parallel calls overlap to reduce wall time.
+      // Voice mode: Haiku for job info (always whole transcript, unchanged),
+      // Sonnet for items. The items path chunks long transcripts on timestamp
+      // boundaries, streams each chunk so it can't 504, then merges + dedupes.
+      // Short transcripts take the single-call path (still streamed — safe).
+      const chunks = chunkTranscript(transcript);
+      const itemsWork = async () => {
+        if (chunks.length === 1) {
+          return callClaude({
+            model: "claude-sonnet-4-6",
+            maxTokens: 6000,
+            timeoutMs: 55000,
+            stream: true,
+            prompt: buildItemsPrompt(chunks[0]),
+            label: "items",
+          });
+        }
+        // Long path: parse chunks SEQUENTIALLY (user-chosen for cleaner merge),
+        // then merge + dedupe. Any chunk failure is surfaced with section
+        // context so the UI shows "Parse failed: section N of M: ...".
+        const perChunk = [];
+        for (let i = 0; i < chunks.length; i++) {
+          try {
+            const r = await callClaude({
+              model: "claude-sonnet-4-6",
+              maxTokens: 6000,
+              timeoutMs: 55000,
+              stream: true,
+              prompt: buildItemsPrompt(chunks[i]),
+              label: `items §${i + 1}/${chunks.length}`,
+            });
+            perChunk.push(r);
+          } catch (e) {
+            throw new Error(`section ${i + 1} of ${chunks.length}: ${e.message}`);
+          }
+        }
+        return mergeItemChunks(perChunk);
+      };
       const [jobInfoResult, itemsResult] = await Promise.all([
         callClaude({
           model: "claude-haiku-4-5-20251001",
@@ -1549,13 +1706,7 @@ export default function App() {
           prompt: buildJobInfoPrompt(transcript),
           label: "job info",
         }),
-        callClaude({
-          model: "claude-sonnet-4-6",
-          maxTokens: 6000,
-          timeoutMs: 90000,
-          prompt: buildItemsPrompt(transcript),
-          label: "items",
-        }),
+        itemsWork(),
       ]);
 
       const jobInfo = jobInfoResult.jobInfo || {};
