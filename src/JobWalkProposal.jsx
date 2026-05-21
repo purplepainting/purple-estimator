@@ -4078,7 +4078,7 @@ ${JSON.stringify(payload, null, 2)}`;
     setMessages(history);
     setThinking(true);
 
-    const MAX_STEPS = 8;
+    const MAX_STEPS = 20;
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
         const data = await callClaude(history);
@@ -4485,7 +4485,7 @@ ${JSON.stringify(payload, null, 2)}`;
     setMessages(history);
     setThinking(true);
 
-    const MAX_STEPS = 8;
+    const MAX_STEPS = 20;
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
         const data = await callClaude(history);
