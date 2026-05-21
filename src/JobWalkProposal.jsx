@@ -3280,11 +3280,18 @@ function clarifyDimChips(room) {
 // adds/removes), parser hints have no predicate (stay until user touches them).
 function buildClarifyQueue(rooms, hints) {
   const queue = [];
+  // Track which rooms already have a client-side dim / door question so the
+  // parser's hint-side equivalents can be deduped when we append them below
+  // (otherwise the room gets asked twice — once by us with a predicate that
+  // auto-drops on resolve, once by the parser without).
+  const dimCovered = new Set();
+  const doorCovered = new Set();
 
   rooms.forEach((r, idx) => {
     if ((r?.type || "room") !== "room") return;
     if (r.length && r.width && r.length !== 0 && r.width !== 0) return;
     const name = r.name || "Unnamed room";
+    dimCovered.add(name.toLowerCase());
     queue.push({
       id: `dim-${idx}-${name}`,
       prompt: `"${name}" is missing length × width — what are the dimensions?`,
@@ -3305,6 +3312,7 @@ function buildClarifyQueue(rooms, hints) {
     if (r.doors?.enabled === false) return;
     if (r.doors?.count > 0) return;
     const name = r.name || "Unnamed room";
+    doorCovered.add(name.toLowerCase());
     queue.push({
       id: `door-${idx}-${name}`,
       prompt: `"${name}" has doors enabled but no door count — how many?`,
@@ -3326,6 +3334,15 @@ function buildClarifyQueue(rooms, hints) {
   });
 
   (hints || []).slice(0, 6).forEach((h, i) => {
+    // Skip parser hints that duplicate a client-side dim / door question for
+    // the same room. The client-side ones carry predicates that auto-drop
+    // when the room is resolved (even by a freeform answer that fills several
+    // rooms at once) — strictly better than the parser's predicate-less hint.
+    if (h.field === "dimensions" || h.field === "doorCount") {
+      const targetName = (h.itemIndex != null && rooms[h.itemIndex]?.name) || "";
+      const covered = h.field === "dimensions" ? dimCovered : doorCovered;
+      if (targetName && covered.has(targetName.toLowerCase())) return;
+    }
     const opts = (h.options || []).filter((o) => o.value !== "__custom__").slice(0, 4);
     queue.push({
       id: `hint-${h.id || i}`,
