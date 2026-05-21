@@ -2698,7 +2698,7 @@ Once the above is confirmed, use the JobTread MCP to:
               {!buildStarted ? (
                 <button style={btnPrimary} onClick={() => setBuildStarted(true)}>Start Build</button>
               ) : (
-                <BuildChat payload={buildPayload()} onBuilt={(snapshot) => setBuiltBudget(snapshot)} />
+                <BuildChat buildPayload={buildPayload} onBuilt={(snapshot) => setBuiltBudget(snapshot)} />
               )}
 
               <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
@@ -2815,7 +2815,7 @@ Once the above is confirmed, use the JobTread MCP to:
                   {builtBudget ? "Start Document" : "Start Document (build the budget first)"}
                 </button>
               ) : (
-                <DocumentChat payload={buildPayload()} builtBudget={builtBudget} />
+                <DocumentChat buildPayload={buildPayload} builtBudget={builtBudget} />
               )}
 
               <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
@@ -4298,14 +4298,21 @@ function buildChatDisplayText(m) {
   return text || null;
 }
 
-function BuildChat({ payload, onBuilt }) {
+function BuildChat({ buildPayload, onBuilt }) {
   // Each message is in API-compatible shape: { role, content } where content
   // is either a string OR an array of typed blocks (text / tool_use / tool_result).
   // The opening assistant message is display-only — it's sliced off when sending
   // to /api/chat because Anthropic requires the first message to be from the user.
+  //
+  // IMPORTANT: payload is built ON DEMAND via buildPayload(). Calling
+  // buildPayload() at App render time (before the catalog useEffect runs)
+  // captured an empty catalogFull and pinned it into the prop. We pass the
+  // builder function instead and invoke it inside buildSystemPrompt() so the
+  // payload reflects the latest fullCatalogRef each turn.
   const [messages, setMessages] = useState(() => {
-    const c = (payload?.customerName || "").trim();
-    const a = (payload?.siteAddress || "").trim();
+    const p0 = buildPayload();
+    const c = (p0?.customerName || "").trim();
+    const a = (p0?.siteAddress || "").trim();
     const opening = c && a
       ? `Ready to build for ${c} at ${a}. I'll search for the customer in JobTread first — if there's a match I'll use it, otherwise I'll create the customer and the job at that address. Anything to change before I start?`
       : c
@@ -4339,6 +4346,7 @@ function BuildChat({ payload, onBuilt }) {
   }, [messages, thinking]);
 
   function buildSystemPrompt() {
+    const payload = buildPayload();
     return `You are a JobTread build assistant for Purple Painting Co. Your job is to build a budget in JobTread by calling the provided tools.
 
 PRINCIPLES
@@ -4802,7 +4810,7 @@ const DOCUMENT_CHAT_TOOLS = [
   },
 ];
 
-function DocumentChat({ payload, builtBudget }) {
+function DocumentChat({ buildPayload, builtBudget }) {
   // Same API-compatible shape as BuildChat — { role, content } where content
   // is a string OR array of typed blocks (text / tool_use / tool_result).
   const [messages, setMessages] = useState([
@@ -4832,6 +4840,7 @@ function DocumentChat({ payload, builtBudget }) {
   }, [messages, thinking]);
 
   function buildSystemPrompt() {
+    const payload = buildPayload();
     return `You are a JobTread document assistant for Purple Painting Co. Your job is to create and edit the customer-facing proposal document by calling the provided tools.
 
 PRINCIPLES
