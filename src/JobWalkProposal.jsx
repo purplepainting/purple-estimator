@@ -325,6 +325,10 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    // Opt into streaming via the shared /api/chat proxy. The main.jsx fetch
+    // shim only forwards `body` — so stream:true MUST live INSIDE the JSON
+    // body (not init / headers). Without streaming, long parse generations
+    // exceed Vercel's 60s function ceiling and produce FUNCTION_INVOCATION_TIMEOUT.
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -332,6 +336,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
+        stream: true,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -341,17 +346,42 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       throw new Error(`${label} HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-
-    if (data.type === "error" || data.error) {
-      throw new Error(`${label} API error: ${data.error?.message || JSON.stringify(data.error)}`);
+    // Consume the SSE stream Anthropic emits (passed through unchanged by
+    // /api/chat). Accumulate text from content_block_delta events; capture
+    // stop_reason from message_delta. After the stream ends, fall through to
+    // the same parse-and-salvage logic the buffered path used.
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let fullText = "";
+    let stopReason = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop(); // keep partial line for next chunk
+      for (const line of lines) {
+        const s = line.trim();
+        if (!s.startsWith("data:")) continue;
+        const payload = s.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        let evt;
+        try { evt = JSON.parse(payload); } catch { continue; }
+        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+          fullText += evt.delta.text;
+        } else if (evt.type === "message_delta" && evt.delta?.stop_reason) {
+          stopReason = evt.delta.stop_reason;
+        } else if (evt.type === "error") {
+          throw new Error(`${label} API error: ${evt.error?.message || JSON.stringify(evt.error)}`);
+        }
+      }
     }
 
-    const textBlock = data.content?.find((c) => c.type === "text");
-    if (!textBlock) throw new Error(`${label}: no text content in response`);
+    if (!fullText) throw new Error(`${label}: no text content in response`);
 
-    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
-    const wasTruncated = data.stop_reason === "max_tokens";
+    const cleaned = fullText.replace(/```json|```/g, "").trim();
+    const wasTruncated = stopReason === "max_tokens";
 
     // Try direct parse first
     try {
