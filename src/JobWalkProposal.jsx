@@ -4203,7 +4203,23 @@ async function runSearchCatalog({ query, coats }) {
   const { data, error } = await sel;
   if (error || !data) return { matches: [] };
   let rows = data;
-  if (coats) rows = rows.filter((r) => (r.coats || "").toLowerCase().includes(coats.toLowerCase()));
+  if (coats) {
+    // Tolerant coats match — stored values are picky ("Prime + Paint : 2-Coats"
+    // with spaces around the colon). Normalize both sides (lowercase, drop
+    // whitespace and : + - ) so "Prime + 2", "Prime+Paint:2-Coats",
+    // "prime + paint : 2-coats", "2-coats" all resolve. Bidirectional includes
+    // so a partial input still matches the full stored value.
+    const norm = (s) => String(s || "").toLowerCase().replace(/[\s:+\-]/g, "");
+    const b = norm(coats);
+    const filtered = rows.filter((r) => {
+      const a = norm(r.coats);
+      return a.includes(b) || b.includes(a);
+    });
+    // If the coats filter excluded everything, degrade to the unfiltered
+    // substrate matches so the agent/user can still pick — better than
+    // returning nothing and falling back to begging for IDs.
+    if (filtered.length > 0) rows = filtered;
+  }
   return {
     matches: rows.map((r) => ({
       organizationCostItemId: r.id,
