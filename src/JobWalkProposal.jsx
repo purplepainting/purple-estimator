@@ -332,7 +332,14 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
+        // Assistant prefill: forces the model to continue from "{", so it can
+        // NEVER emit a prose preamble like "I'll carefully parse..." that
+        // breaks JSON.parse. The "{" is NOT echoed back in the response text
+        // — we prepend it below before parsing.
+        messages: [
+          { role: "user", content: prompt },
+          { role: "assistant", content: "{" },
+        ],
       }),
     });
 
@@ -350,16 +357,27 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
     const textBlock = data.content?.find((c) => c.type === "text");
     if (!textBlock) throw new Error(`${label}: no text content in response`);
 
-    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
+    // We prefilled the assistant turn with "{", so the model's response text
+    // is the CONTINUATION — it does NOT include the leading "{". Prepend it
+    // back before stripping fences and parsing.
+    let raw = textBlock.text;
+    if (!raw.trimStart().startsWith("{")) raw = "{" + raw;
+    const cleaned = raw.replace(/```json|```/g, "").trim();
     const wasTruncated = data.stop_reason === "max_tokens";
+
+    // Defensive JSON-object extraction: if any stray wrapper (a header line,
+    // partial fence, trailing prose) still sneaks past, slice from the first
+    // "{" to the last "}" before attempting JSON.parse. salvageTruncatedJSON
+    // runs on the same narrowed span.
+    const candidate = extractJsonObject(cleaned);
 
     // Try direct parse first
     try {
-      return JSON.parse(cleaned);
+      return JSON.parse(candidate);
     } catch (jsonErr) {
       // If truncated, attempt graceful recovery — keep as many complete array items as possible.
       if (wasTruncated) {
-        const salvaged = salvageTruncatedJSON(cleaned);
+        const salvaged = salvageTruncatedJSON(candidate);
         if (salvaged) {
           // Mark the result so callers can show a soft warning
           salvaged._truncated = true;
@@ -367,7 +385,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
         }
         throw new Error(`${label}: response was truncated and could not be recovered. The job might be too complex — try splitting it into smaller sections, or simplifying the notes.`);
       }
-      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${cleaned.slice(0, 200)}`);
+      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${candidate.slice(0, 200)}`);
     }
   } catch (e) {
     if (e.name === "AbortError") {
@@ -377,6 +395,19 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// Defensive JSON-object span extractor. If the response text has stray prose
+// before/after the JSON (model preamble like "I'll parse...", a stray heading,
+// trailing commentary), slice from the first "{" to the last "}" so JSON.parse
+// gets a clean candidate. Returns the input unchanged when there's no
+// recognizable object span (so the caller's error path surfaces a clean
+// message instead of a misleading one).
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return text;
+  return text.slice(start, end + 1);
 }
 
 // Attempt to recover usable content from a truncated JSON response.
@@ -756,7 +787,9 @@ RULES FOR OPTIONS:
 - Use _multiPatch + formula strings whenever the answer derives multiple quantities from a measurement
 
 Transcript:
-${transcript}`;
+${transcript}
+
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY. Start your response with the character { and end with }. No explanation, no preamble, no "I'll parse...", no markdown, no headings. The first character of your response must be {.`;
 }
 
 function buildNotesPrompt(notes) {
