@@ -351,15 +351,19 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
     if (!textBlock) throw new Error(`${label}: no text content in response`);
 
     const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
+    // Tolerant extraction: pull the {...} span out of whatever wrapper the
+    // model emitted (prose preamble like "I'll carefully parse...", leading
+    // whitespace, stray heading). JSON.parse + salvage both run on this span.
+    const candidate = extractJsonObject(cleaned);
     const wasTruncated = data.stop_reason === "max_tokens";
 
     // Try direct parse first
     try {
-      return JSON.parse(cleaned);
+      return JSON.parse(candidate);
     } catch (jsonErr) {
       // If truncated, attempt graceful recovery — keep as many complete array items as possible.
       if (wasTruncated) {
-        const salvaged = salvageTruncatedJSON(cleaned);
+        const salvaged = salvageTruncatedJSON(candidate);
         if (salvaged) {
           // Mark the result so callers can show a soft warning
           salvaged._truncated = true;
@@ -367,7 +371,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
         }
         throw new Error(`${label}: response was truncated and could not be recovered. The job might be too complex — try splitting it into smaller sections, or simplifying the notes.`);
       }
-      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${cleaned.slice(0, 200)}`);
+      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${candidate.slice(0, 200)}`);
     }
   } catch (e) {
     if (e.name === "AbortError") {
@@ -377,6 +381,17 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// Pull the JSON object out of a model response that may have a prose preamble,
+// leading whitespace, or markdown around it. Returns the first '{' .. last '}'
+// span. Returns the input unchanged when there is no recognizable object span
+// (so downstream throws a clear "invalid JSON" error rather than a misleading one).
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return text;
+  return text.slice(start, end + 1);
 }
 
 // Attempt to recover usable content from a truncated JSON response.
@@ -473,7 +488,9 @@ Job-walk transcripts almost always state the customer name and the site address 
 If a field isn't in the transcript, set value to "" (or false for flags) and confidence to "unknown".
 
 Transcript:
-${transcript}`;
+${transcript}
+
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY — your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
 }
 
 function buildItemsPrompt(transcript) {
@@ -756,7 +773,9 @@ RULES FOR OPTIONS:
 - Use _multiPatch + formula strings whenever the answer derives multiple quantities from a measurement
 
 Transcript:
-${transcript}`;
+${transcript}
+
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY — your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
 }
 
 function buildNotesPrompt(notes) {
