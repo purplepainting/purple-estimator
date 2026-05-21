@@ -1570,6 +1570,7 @@ export default function App() {
             coats: r.coats,
           }));
         fullCatalogRef.current = fullRows;
+        console.log("CATALOG LOADED:", fullRows.length, "ref set");
         setFullCatalog(fullRows);
 
         // T&M catalog: shape kind='tm' rows to match TM_CATALOG consumers.
@@ -2033,6 +2034,7 @@ Reasoning hints:
   // ============================================================================
 
   function buildPayload() {
+    console.log("buildPayload called, ref len:", fullCatalogRef.current.length, "state len:", fullCatalog.length);
     // Prefer the ref over the state — both are written in the same fetch
     // effect, but the ref's .current sidesteps any stale-closure / pre-state-
     // propagation render that captured a buildPayload with the initial [].
