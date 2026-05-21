@@ -467,6 +467,9 @@ flags (infer from transcript):
   activeBusiness: { value: bool, confidence: "high"|"medium"|"low"|"unknown" }
 }
 
+EXTRACTION PRIORITIES — customerName and address:
+Job-walk transcripts almost always state the customer name and the site address out loud (e.g. "I'm at Connor Sanders' house, he lives at 626 Ardmore Drive"). When they do, quote them VERBATIM from the transcript and set confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent missing details. If the transcript truly doesn't state the customer or address, return value:"" with confidence:"unknown" — the user fills it in by hand.
+
 If a field isn't in the transcript, set value to "" (or false for flags) and confidence to "unknown".
 
 Transcript:
@@ -817,6 +820,7 @@ function buildCombinedNotesPrompt(notes) {
 No preamble, no markdown fences.
 
 jobInfo: { customerName, address, email, phone, tier } — each is { value, confidence: "high"|"medium"|"low"|"unknown" }
+  customerName / address: when the notes state them (e.g. "Sanders @ 626 Ardmore Dr"), quote VERBATIM with confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent. If absent, value:"" and confidence:"unknown".
   tier value: "standard" | "production" | "highend" | "prevailing"
   tier signals: "PM"/"rental"→production · "custom home"/"luxury"/"designer"/"Emerald"→highend · "DIR"/"prevailing"/"public works"/"school"→prevailing · else→standard
   If a field isn't in the notes, value:"" and confidence:"unknown"
@@ -1317,6 +1321,12 @@ export default function App() {
   // chat level when the payload is pasted — NOT collected in the artifact.
   const [tier, setTier] = useState("standard");
   const [inferredJobInfo, setInferredJobInfo] = useState({}); // retained for tier hint only
+  // Customer / job identity parsed from the transcript. Editable in Step 2 so
+  // the user can correct voice-transcription errors (e.g. "Ardmore" vs
+  // "Artmore") BEFORE BuildChat picks them up via buildPayload.
+  const [customerName, setCustomerName] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [jobName, setJobName] = useState("");
 
   // Transcript & rooms
   const [inputMode, setInputMode] = useState("voice"); // "voice" | "notes" | "takeoff"
@@ -1433,6 +1443,9 @@ export default function App() {
         setTakeoffWarnings(warnings);
         setInferredJobInfo({});
         setInferredFlags({});
+        setCustomerName("");
+        setSiteAddress("");
+        setJobName("");
         setStep(2);
         return;
       }
@@ -1472,6 +1485,14 @@ export default function App() {
         const inferredFlagsResult = combined.flags || {};
         setInferredJobInfo(jobInfo);
         setInferredFlags(inferredFlagsResult);
+
+        // Pull customer / address out for the editable identity fields. jobName
+        // defaults to the site address; user can override after this in Step 2.
+        const parsedCustomer = jobInfo.customerName?.value || "";
+        const parsedAddress = jobInfo.address?.value || "";
+        setCustomerName(parsedCustomer);
+        setSiteAddress(parsedAddress);
+        setJobName(parsedAddress);
 
         if (jobInfo.tier?.value && PRICING_TIERS[jobInfo.tier.value]) setTier(jobInfo.tier.value);
 
@@ -1522,6 +1543,14 @@ export default function App() {
       const inferredFlagsResult = jobInfoResult.flags || {};
       setInferredJobInfo(jobInfo);
       setInferredFlags(inferredFlagsResult);
+
+      // Pull customer / address out for the editable identity fields. jobName
+      // defaults to the site address; user can override after this in Step 2.
+      const parsedCustomer = jobInfo.customerName?.value || "";
+      const parsedAddress = jobInfo.address?.value || "";
+      setCustomerName(parsedCustomer);
+      setSiteAddress(parsedAddress);
+      setJobName(parsedAddress);
 
       if (jobInfo.tier?.value && PRICING_TIERS[jobInfo.tier.value]) setTier(jobInfo.tier.value);
 
@@ -1766,9 +1795,13 @@ Reasoning hints:
       inputMode === "takeoff" ? "Digital Takeoff" : "Job Walk";
 
     return {
-      // NO `job` block — customer name / address / email / phone are collected
-      // by chat-level Claude when the payload is pasted. The artifact only
-      // produces the scope of work, not the job identity.
+      // Customer / job identity parsed from the transcript and corrected by
+      // the user in Step 2. BuildChat reads these out of the payload so its
+      // create_job flow no longer has to ask. Any of them may be "" if the
+      // transcript didn't state them and the user didn't fill them in.
+      customerName,
+      siteAddress,
+      jobName,
       tier: { key: tier, label: tierMeta.label, multiplier: tierMeta.multiplier },
       inputMode,                             // "voice" | "notes" | "takeoff"
       bidOrigin,                             // "Job Walk" | "Digital Takeoff"
@@ -2098,6 +2131,47 @@ Once the above is confirmed, use the JobTread MCP to:
                     Chat with the estimator to refine the items below — change coats, dimensions, add or remove rooms, anything.
                     {clarifications.length > 0 && ` ${clarifications.length} item${clarifications.length === 1 ? "" : "s"} flagged by the parser; suggestions appear in the chat.`}
                   </p>
+
+                  {/* Customer / job identity — pre-filled from the parsed transcript,
+                      editable so the user can correct voice-transcription errors
+                      (e.g. "Ardmore" vs "Artmore") BEFORE BuildChat picks them up. */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Customer name</label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="e.g. Connor Sanders"
+                        style={{ width: "100%", padding: 8, borderRadius: 6, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, background: "transparent", color: "inherit", fontFamily: "inherit", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Site address</label>
+                      <input
+                        type="text"
+                        value={siteAddress}
+                        onChange={(e) => setSiteAddress(e.target.value)}
+                        placeholder="e.g. 626 Ardmore Drive, Santa Barbara, CA 93105"
+                        style={{ width: "100%", padding: 8, borderRadius: 6, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, background: "transparent", color: "inherit", fontFamily: "inherit", boxSizing: "border-box" }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                      Job name
+                      <span style={{ fontSize: 11, color: "var(--color-text-secondary, #666)", fontStyle: "italic", marginLeft: 8, fontWeight: 400 }}>
+                        (defaults to site address; edit if you want the JT job tile to read differently)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={jobName}
+                      onChange={(e) => setJobName(e.target.value)}
+                      placeholder="e.g. 626 Ardmore Drive"
+                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, background: "transparent", color: "inherit", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
 
                   {/* Pricing tier — needed in-artifact only because the Scope step
                       uses it to pick standard vs high-end prep wording. Chat-level
