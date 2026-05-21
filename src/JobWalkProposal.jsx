@@ -467,6 +467,9 @@ flags (infer from transcript):
   activeBusiness: { value: bool, confidence: "high"|"medium"|"low"|"unknown" }
 }
 
+EXTRACTION PRIORITIES — customerName and address:
+Job-walk transcripts almost always state the customer name and the site address out loud (e.g. "I'm at Connor Sanders' house, he lives at 626 Ardmore Drive"). When they do, quote them VERBATIM from the transcript and set confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent missing details. If the transcript truly doesn't state the customer or address, return value:"" with confidence:"unknown" — the user fills it in by hand.
+
 If a field isn't in the transcript, set value to "" (or false for flags) and confidence to "unknown".
 
 Transcript:
@@ -817,6 +820,7 @@ function buildCombinedNotesPrompt(notes) {
 No preamble, no markdown fences.
 
 jobInfo: { customerName, address, email, phone, tier } — each is { value, confidence: "high"|"medium"|"low"|"unknown" }
+  customerName / address: when the notes state them (e.g. "Sanders @ 626 Ardmore Dr"), quote VERBATIM with confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent. If absent, value:"" and confidence:"unknown".
   tier value: "standard" | "production" | "highend" | "prevailing"
   tier signals: "PM"/"rental"→production · "custom home"/"luxury"/"designer"/"Emerald"→highend · "DIR"/"prevailing"/"public works"/"school"→prevailing · else→standard
   If a field isn't in the notes, value:"" and confidence:"unknown"
@@ -1317,6 +1321,12 @@ export default function App() {
   // chat level when the payload is pasted — NOT collected in the artifact.
   const [tier, setTier] = useState("standard");
   const [inferredJobInfo, setInferredJobInfo] = useState({}); // retained for tier hint only
+  // Customer / job identity parsed from the transcript. Editable in Step 2 so
+  // the user can correct voice-transcription errors (e.g. "Ardmore" vs
+  // "Artmore") BEFORE BuildChat picks them up via buildPayload.
+  const [customerName, setCustomerName] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [jobName, setJobName] = useState("");
 
   // Transcript & rooms
   const [inputMode, setInputMode] = useState("voice"); // "voice" | "notes" | "takeoff"
@@ -1352,9 +1362,10 @@ export default function App() {
   const [customScope, setCustomScope] = useState({}); // { groupKey: [strings] }
   const [customExclusions, setCustomExclusions] = useState([]);
   const [buildStarted, setBuildStarted] = useState(false);          // Step 3 — gates the BuildChat panel
-  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt — feeds Scope
+  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt — feeds Scope + DocumentChat
   const [budgetConfirmed, setBudgetConfirmed] = useState(false);    // "Budget looks good" gate clicked
   const [scopeGroups, setScopeGroups] = useState([]);               // Cost-group keys resolved at categorize time (budget → fallback to parsed)
+  const [documentStarted, setDocumentStarted] = useState(false);    // Step 5 — gates the DocumentChat panel
 
   // Load library from storage on mount
   useEffect(() => {
@@ -1432,6 +1443,9 @@ export default function App() {
         setTakeoffWarnings(warnings);
         setInferredJobInfo({});
         setInferredFlags({});
+        setCustomerName("");
+        setSiteAddress("");
+        setJobName("");
         setStep(2);
         return;
       }
@@ -1471,6 +1485,14 @@ export default function App() {
         const inferredFlagsResult = combined.flags || {};
         setInferredJobInfo(jobInfo);
         setInferredFlags(inferredFlagsResult);
+
+        // Pull customer / address out for the editable identity fields. jobName
+        // defaults to the site address; user can override after this in Step 2.
+        const parsedCustomer = jobInfo.customerName?.value || "";
+        const parsedAddress = jobInfo.address?.value || "";
+        setCustomerName(parsedCustomer);
+        setSiteAddress(parsedAddress);
+        setJobName(parsedAddress);
 
         if (jobInfo.tier?.value && PRICING_TIERS[jobInfo.tier.value]) setTier(jobInfo.tier.value);
 
@@ -1521,6 +1543,14 @@ export default function App() {
       const inferredFlagsResult = jobInfoResult.flags || {};
       setInferredJobInfo(jobInfo);
       setInferredFlags(inferredFlagsResult);
+
+      // Pull customer / address out for the editable identity fields. jobName
+      // defaults to the site address; user can override after this in Step 2.
+      const parsedCustomer = jobInfo.customerName?.value || "";
+      const parsedAddress = jobInfo.address?.value || "";
+      setCustomerName(parsedCustomer);
+      setSiteAddress(parsedAddress);
+      setJobName(parsedAddress);
 
       if (jobInfo.tier?.value && PRICING_TIERS[jobInfo.tier.value]) setTier(jobInfo.tier.value);
 
@@ -1765,9 +1795,13 @@ Reasoning hints:
       inputMode === "takeoff" ? "Digital Takeoff" : "Job Walk";
 
     return {
-      // NO `job` block — customer name / address / email / phone are collected
-      // by chat-level Claude when the payload is pasted. The artifact only
-      // produces the scope of work, not the job identity.
+      // Customer / job identity parsed from the transcript and corrected by
+      // the user in Step 2. BuildChat reads these out of the payload so its
+      // create_job flow no longer has to ask. Any of them may be "" if the
+      // transcript didn't state them and the user didn't fill them in.
+      customerName,
+      siteAddress,
+      jobName,
       tier: { key: tier, label: tierMeta.label, multiplier: tierMeta.multiplier },
       inputMode,                             // "voice" | "notes" | "takeoff"
       bidOrigin,                             // "Job Walk" | "Digital Takeoff"
@@ -2097,6 +2131,47 @@ Once the above is confirmed, use the JobTread MCP to:
                     Chat with the estimator to refine the items below — change coats, dimensions, add or remove rooms, anything.
                     {clarifications.length > 0 && ` ${clarifications.length} item${clarifications.length === 1 ? "" : "s"} flagged by the parser; suggestions appear in the chat.`}
                   </p>
+
+                  {/* Customer / job identity — pre-filled from the parsed transcript,
+                      editable so the user can correct voice-transcription errors
+                      (e.g. "Ardmore" vs "Artmore") BEFORE BuildChat picks them up. */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Customer name</label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="e.g. Connor Sanders"
+                        style={{ width: "100%", padding: 8, borderRadius: 6, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, background: "transparent", color: "inherit", fontFamily: "inherit", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Site address</label>
+                      <input
+                        type="text"
+                        value={siteAddress}
+                        onChange={(e) => setSiteAddress(e.target.value)}
+                        placeholder="e.g. 626 Ardmore Drive, Santa Barbara, CA 93105"
+                        style={{ width: "100%", padding: 8, borderRadius: 6, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, background: "transparent", color: "inherit", fontFamily: "inherit", boxSizing: "border-box" }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                      Job name
+                      <span style={{ fontSize: 11, color: "var(--color-text-secondary, #666)", fontStyle: "italic", marginLeft: 8, fontWeight: 400 }}>
+                        (defaults to site address; edit if you want the JT job tile to read differently)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={jobName}
+                      onChange={(e) => setJobName(e.target.value)}
+                      placeholder="e.g. 626 Ardmore Drive"
+                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))", fontSize: 13, background: "transparent", color: "inherit", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
 
                   {/* Pricing tier — needed in-artifact only because the Scope step
                       uses it to pick standard vs high-end prep wording. Chat-level
@@ -2442,11 +2517,26 @@ Once the above is confirmed, use the JobTread MCP to:
             </div>
           )}
 
-          {/* Step 5: Export (manual copy/payload) */}
+          {/* Step 5: Export — DocumentChat panel + manual-copy fallback */}
           {step === 5 && (
             <div style={card}>
-              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>Export</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>Copy the JSON payload and paste it into a new chat to build the budget and push the proposal to JobTread.</p>
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Create Proposal Document</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>
+                Build the customer-facing document directly in JobTread. The chat picks up the budget you just built and mirrors it as line items.
+              </p>
+              {!documentStarted ? (
+                <button style={btnPrimary} onClick={() => setDocumentStarted(true)} disabled={!builtBudget}>
+                  {builtBudget ? "Start Document" : "Start Document (build the budget first)"}
+                </button>
+              ) : (
+                <DocumentChat payload={buildPayload()} builtBudget={builtBudget} />
+              )}
+
+              <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
+
+              {/* Manual export fallback — kept available as an escape hatch. */}
+              <h2 style={{ fontSize: 16, fontWeight: 500, margin: "0 0 8px" }}>Manual Export (fallback)</h2>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>If the chat hits an issue, you can still copy the JSON payload and paste it into a separate chat.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
                 <button style={btnPrimary} onClick={copyPayload}>
                   📋 Copy Full Payload (for chat)
@@ -3190,11 +3280,18 @@ function clarifyDimChips(room) {
 // adds/removes), parser hints have no predicate (stay until user touches them).
 function buildClarifyQueue(rooms, hints) {
   const queue = [];
+  // Track which rooms already have a client-side dim / door question so the
+  // parser's hint-side equivalents can be deduped when we append them below
+  // (otherwise the room gets asked twice — once by us with a predicate that
+  // auto-drops on resolve, once by the parser without).
+  const dimCovered = new Set();
+  const doorCovered = new Set();
 
   rooms.forEach((r, idx) => {
     if ((r?.type || "room") !== "room") return;
     if (r.length && r.width && r.length !== 0 && r.width !== 0) return;
     const name = r.name || "Unnamed room";
+    dimCovered.add(name.toLowerCase());
     queue.push({
       id: `dim-${idx}-${name}`,
       prompt: `"${name}" is missing length × width — what are the dimensions?`,
@@ -3215,6 +3312,7 @@ function buildClarifyQueue(rooms, hints) {
     if (r.doors?.enabled === false) return;
     if (r.doors?.count > 0) return;
     const name = r.name || "Unnamed room";
+    doorCovered.add(name.toLowerCase());
     queue.push({
       id: `door-${idx}-${name}`,
       prompt: `"${name}" has doors enabled but no door count — how many?`,
@@ -3236,6 +3334,15 @@ function buildClarifyQueue(rooms, hints) {
   });
 
   (hints || []).slice(0, 6).forEach((h, i) => {
+    // Skip parser hints that duplicate a client-side dim / door question for
+    // the same room. The client-side ones carry predicates that auto-drop
+    // when the room is resolved (even by a freeform answer that fills several
+    // rooms at once) — strictly better than the parser's predicate-less hint.
+    if (h.field === "dimensions" || h.field === "doorCount") {
+      const targetName = (h.itemIndex != null && rooms[h.itemIndex]?.name) || "";
+      const covered = h.field === "dimensions" ? dimCovered : doorCovered;
+      if (targetName && covered.has(targetName.toLowerCase())) return;
+    }
     const opts = (h.options || []).filter((o) => o.value !== "__custom__").slice(0, 4);
     queue.push({
       id: `hint-${h.id || i}`,
@@ -3762,7 +3869,7 @@ const BUILD_CHAT_TOOLS = [
         tier: { type: "string", description: "Pricing tier — 'standard' | 'production' | 'highend' | 'prevailing'. Maps to the Job Type custom field." },
         bidOrigin: { type: "string", description: "How the bid came in — 'Job Walk' | 'Digital Takeoff' | 'Partner Work Order'. Maps to the How Did Bid Come In custom field." },
       },
-      required: ["customerId", "name"],
+      required: ["customerId", "name", "address"],
     },
   },
   {
@@ -3838,12 +3945,18 @@ function BuildChat({ payload, onBuilt }) {
   // is either a string OR an array of typed blocks (text / tool_use / tool_result).
   // The opening assistant message is display-only — it's sliced off when sending
   // to /api/chat because Anthropic requires the first message to be from the user.
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.",
-    },
-  ]);
+  const [messages, setMessages] = useState(() => {
+    const c = (payload?.customerName || "").trim();
+    const a = (payload?.siteAddress || "").trim();
+    const opening = c && a
+      ? `Ready to build for ${c} at ${a}. I'll search for the customer in JobTread first — if there's a match I'll use it, otherwise I'll create the customer and the job at that address. Anything to change before I start?`
+      : c
+        ? `Ready to build for ${c}. The site address wasn't captured from the transcript — what's the job address?`
+        : a
+          ? `Ready to build at ${a}. The customer name wasn't captured from the transcript — what's the customer's name?`
+          : "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.";
+    return [{ role: "assistant", content: opening }];
+  });
   const [inputText, setInputText] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
@@ -3913,9 +4026,9 @@ CRITICAL JT RULES
 BUILD SEQUENCE
 ═══════════════════
 Stage A — Resolve customer + job:
-1. If you don't have the customer name + job address, ask the user.
-2. Call find_customer with whatever name fragment the user gave — single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for full details (contact name, email, phone, address) and then call create_customer. Never skip the find_customer step.
-3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job.
+1. The payload may already carry payload.customerName, payload.siteAddress, and payload.jobName — these are pre-filled from the parsed transcript and confirmed by the user in Step 2. USE THEM DIRECTLY whenever non-empty. Do NOT re-ask the user for any identity field that the payload already carries. Only ask if the corresponding payload field is empty ("").
+2. Call find_customer with payload.customerName (or whatever name fragment the user gave if payload.customerName was empty). Single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for the contact details still missing (email, phone — name and address come from the payload) and then call create_customer with name=payload.customerName and address=payload.siteAddress. Never skip the find_customer step.
+3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job with name=payload.jobName (fall back to payload.siteAddress if payload.jobName is empty), address=payload.siteAddress.
 4. When calling create_job, always include tier (from payload.tier) and bidOrigin (from payload.bidOrigin) so the custom fields populate.
 
 Stage B — Top-level structure (create ONLY the side(s) that will hold work):
@@ -3985,6 +4098,8 @@ ${JSON.stringify({
 
 PAYLOAD (what you're building)
 ═══════════════════
+IDENTITY FIELDS — payload.customerName, payload.siteAddress, and payload.jobName at the top level are pre-filled from the transcript and confirmed by the user in Step 2. Use them DIRECTLY in find_customer / create_customer / create_job; do not re-ask the user for them. They will only be "" when the transcript didn't state them AND the user didn't fill them in.
+
 ${JSON.stringify(payload, null, 2)}`;
   }
 
@@ -4062,7 +4177,7 @@ ${JSON.stringify(payload, null, 2)}`;
     setMessages(history);
     setThinking(true);
 
-    const MAX_STEPS = 8;
+    const MAX_STEPS = 20;
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
         const data = await callClaude(history);
@@ -4158,6 +4273,457 @@ ${JSON.stringify(payload, null, 2)}`;
             onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
             disabled={thinking}
             placeholder='e.g. "Customer is Smith Family, job at 123 Oak Street"'
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              fontSize: 13,
+              border: "0.5px solid var(--color-border-secondary, rgba(0,0,0,0.3))",
+              borderRadius: 6,
+              background: "transparent",
+              color: "inherit",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={thinking || !inputText.trim()}
+            style={{
+              padding: "8px 14px",
+              fontSize: 12,
+              borderRadius: 6,
+              border: "0.5px solid #2C1654",
+              background: inputText.trim() && !thinking ? "#2C1654" : "transparent",
+              color: inputText.trim() && !thinking ? "#fff" : "var(--color-text-secondary, #888)",
+              cursor: thinking || !inputText.trim() ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontWeight: 500,
+            }}
+          >
+            Send
+          </button>
+        </div>
+        {error && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--color-text-danger, #c33)" }}>
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// DocumentChat — Phase 2: in-app proposal document via /api/jobtread (native tool use)
+// ============================================================================
+// Clone of BuildChat's pattern (same /api/chat loop, contextRef + system-prompt
+// status convenience, same /api/jobtread tool dispatch) but with two
+// document-shaped executors. Fed by the in-memory builtBudget snapshot
+// (jobId + costGroupIds) so the model can mirror what BuildChat created.
+
+const DOCUMENT_CHAT_TOOLS = [
+  {
+    name: "find_user",
+    description: "Look up an internal Purple Painting team member by name fragment. Returns matching users with { name, emailAddress, phoneNumber } — use these as fromName / fromEmailAddress / fromPhoneNumber on create_document. The proxy filters to @purplepainting.net users and excludes machine accounts.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name fragment to match (e.g. 'Kareem', 'Peter')." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "get_job_cost_items",
+    description: "List the JOB's cost items AND the job's location in one call. Returns { job: { location: { name, address }, costItems: { nodes: [{ id, name, quantity, costCode { id }, costType { id }, unit { id }, unitCost, unitPrice, costGroup { id, name } }, ...] } } }. Each costItems.nodes[].id is the jobCostItemId you pass to update_document's costItem children. job.location.name and job.location.address are what you pass to create_document as jobLocationName / jobLocationAddress (createDocument does NOT inherit the job's location).",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
+      },
+      required: ["jobId"],
+    },
+  },
+  {
+    name: "create_document",
+    description: "Create a JobTread document. Barebones — line items are added afterwards via update_document. `name` MUST be one of JT's TEMPLATE names verbatim ('Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'); the descriptive title goes in `subject`. createDocument does NOT inherit the job's location — always pass jobLocationName + jobLocationAddress from get_job_cost_items' job.location. type is 'customerOrder' for proposals. dueDays XOR dueDate — never set both.",
+    input_schema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
+        name: { type: "string", description: "Document TEMPLATE name (must match a JT template verbatim): 'Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'. Default: 'Proposal'. Do NOT put the customer/address here — JT rejects non-template names." },
+        subject: { type: "string", description: "Descriptive document title shown to the customer (e.g. 'Smith Family — 123 Main St — Interior Repaint Proposal'). This is where the human-readable label goes, not `name`." },
+        type: { type: "string", description: "Document type enum: 'bidRequest' | 'customerInvoice' | 'customerOrder' | 'vendorBill' | 'vendorOrder'. Use 'customerOrder' for proposals." },
+        fromName: { type: "string", description: "Preparer's display name (the result of find_user)." },
+        toName: { type: "string", description: "Recipient's display name — typically the customer's primary contact." },
+        taxRate: { type: "number", description: "Sales tax rate as a decimal (0..1). Use 0 for paint proposals." },
+        description: { type: "string", description: "Scope-of-work text (≤32768 chars). Goes into the document body." },
+        footer: { type: "string", description: "Exclusions text (≤65536 chars). Goes at the bottom of the document." },
+        dueDays: { type: "number", description: "Days until the document is due (integer ≥ 0). Use 30 by default. XOR with dueDate — pick one." },
+        dueDate: { type: "string", description: "Absolute due date in ISO format YYYY-MM-DD. XOR with dueDays — pick one." },
+        issueDate: { type: "string", description: "Date the document is issued, ISO YYYY-MM-DD. Default to today." },
+        jobLocationName: { type: "string", description: "Document location name — pass job.location.name from get_job_cost_items." },
+        jobLocationAddress: { type: "string", description: "Document location address — pass job.location.address from get_job_cost_items." },
+        fromEmailAddress: { type: "string", description: "Preparer's email (from find_user)." },
+        fromPhoneNumber: { type: "string", description: "Preparer's phone (from find_user, if present)." },
+        toEmailAddress: { type: "string", description: "Recipient's email — from the customer's primaryContact." },
+      },
+      required: ["jobId", "name", "type", "fromName", "toName", "taxRate"],
+    },
+  },
+  {
+    name: "update_document",
+    description: "Update a JobTread document. lineItems use the PROVEN costGroup-wrapper structure (verified against a live $8,219 document): one or more top-level costGroup entries, each carrying costItem children with the full field set { _type:'costItem', jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice }. Discriminator is 'costGroup' / 'costItem' (NOT 'newCostGroup' / 'newCostItem'). Pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node's costCode.id / costType.id / unit.id / unitCost / unitPrice — leaving any of them out makes JT show $0 or wrong codes.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The document's JobTread ID (from create_document's createdDocument.id)." },
+        name: { type: "string", description: "Updated document TEMPLATE name (same constraint as create_document — must match a JT template verbatim)." },
+        subject: { type: "string", description: "Updated descriptive subject." },
+        fromName: { type: "string", description: "Updated preparer name." },
+        toName: { type: "string", description: "Updated recipient name." },
+        taxRate: { type: "number", description: "Updated tax rate (0..1)." },
+        dueDays: { type: "number", description: "Updated days until due. XOR with dueDate." },
+        dueDate: { type: "string", description: "Updated absolute due date (YYYY-MM-DD). XOR with dueDays." },
+        issueDate: { type: "string", description: "Updated issue date (YYYY-MM-DD)." },
+        jobLocationName: { type: "string", description: "Updated document location name." },
+        jobLocationAddress: { type: "string", description: "Updated document location address." },
+        description: { type: "string", description: "Updated scope-of-work text." },
+        footer: { type: "string", description: "Updated exclusions text." },
+        fromEmailAddress: { type: "string", description: "Updated preparer email." },
+        fromPhoneNumber: { type: "string", description: "Updated preparer phone." },
+        toEmailAddress: { type: "string", description: "Updated recipient email." },
+        lineItems: {
+          type: "array",
+          description: "PROVEN costGroup-wrapper structure. Each entry is a costGroup containing costItem children — see this tool's top-level description for the exact field set.",
+          items: {
+            type: "object",
+            description: "A costGroup wrapper. _type must be 'costGroup'.",
+            properties: {
+              _type: { type: "string", description: "Discriminator. Must be 'costGroup'." },
+              name: { type: "string", description: "Group label shown on the document (e.g. 'Full Interior Painting')." },
+              lineItems: {
+                type: "array",
+                description: "costItem children inside this group. _type on each must be 'costItem'.",
+                items: {
+                  type: "object",
+                  properties: {
+                    _type: { type: "string", description: "Discriminator. Must be 'costItem'." },
+                    jobCostItemId: { type: "string", description: "The matching get_job_cost_items node's id. NOT sourceCostItemId, NOT organizationCostItemId." },
+                    name: { type: "string", description: "Line display name (typically the cost item's name)." },
+                    quantity: { type: "number", description: "Resolved numeric quantity from get_job_cost_items (e.g. 396, 120). NOT a formula string." },
+                    costCodeId: { type: "string", description: "From the get_job_cost_items node's costCode.id." },
+                    costTypeId: { type: "string", description: "From the get_job_cost_items node's costType.id." },
+                    unitId: { type: "string", description: "From the get_job_cost_items node's unit.id." },
+                    unitCost: { type: "number", description: "From the get_job_cost_items node's unitCost." },
+                    unitPrice: { type: "number", description: "From the get_job_cost_items node's unitPrice." },
+                  },
+                  required: ["_type", "jobCostItemId"],
+                },
+              },
+            },
+            required: ["_type", "name", "lineItems"],
+          },
+        },
+      },
+      required: ["id"],
+    },
+  },
+];
+
+function DocumentChat({ payload, builtBudget }) {
+  // Same API-compatible shape as BuildChat — { role, content } where content
+  // is a string OR array of typed blocks (text / tool_use / tool_result).
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content: "Ready to create the customer-facing proposal document. Who's preparing this one? Default is Kareem — say a different name if it's someone else (Peter, Lyric, etc.).",
+    },
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [error, setError] = useState("");
+  const scrollerRef = useRef(null);
+
+  // Document context — IDs accumulated as tools execute. Kept in a ref so the
+  // system prompt re-reads the latest values on each callClaude.
+  const contextRef = useRef({
+    documentId: null,
+    preparer: null,        // { name, emailAddress, phoneNumber } — from find_user
+    recipient: null,       // { name, emailAddress } — typically customer primaryContact
+    errors: [],
+  });
+
+  useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    }
+  }, [messages, thinking]);
+
+  function buildSystemPrompt() {
+    return `You are a JobTread document assistant for Purple Painting Co. Your job is to create and edit the customer-facing proposal document by calling the provided tools.
+
+PRINCIPLES
+═══════════════════
+- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
+- Tools available: find_user, get_job_cost_items, create_document, update_document. Each tool's input schema describes its required and optional fields.
+- When you need a decision from the user (preparer confirmation, recipient confirmation, conversational edits), reply with text and NO tool calls. Otherwise prefer calling tools.
+- Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
+- If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
+
+IDS YOU'LL NEED
+═══════════════════
+ORG: 22PWNY9u7qZd
+JOB: ${builtBudget?.jobId || "(not built yet — ask the user for the job ID)"}
+CUSTOMER: ${builtBudget?.customerId || "(unknown — ask the user)"}
+TYPE: use "customerOrder" for customer-facing proposals.
+
+CRITICAL DOCUMENT RULES
+═══════════════════
+1. update_document.lineItems uses the PROVEN costGroup-wrapper structure (verified against a live $8,219 document). One or more top-level entries with { _type:"costGroup", name:<group label>, lineItems:[<costItem children>] }. Each costItem child MUST include { _type:"costItem", jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice } — pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node. Discriminator is "costGroup"/"costItem" (NOT "newCostGroup"/"newCostItem"). jobCostItemId is the node's id — NOT sourceCostItemId, NOT organizationCostItemId.
+2. create_document.name MUST exactly match a JT TEMPLATE name: "Proposal" | "Selections" | "Change Order" | "Interior Scope of work proposal". Default "Proposal". The descriptive title (e.g. "Smith Family — 123 Main St — Interior Repaint Proposal") goes in 'subject', NEVER in 'name' — JT rejects non-template names.
+3. createDocument does NOT inherit the job's location. ALWAYS pass jobLocationName + jobLocationAddress (read from get_job_cost_items' job.location.name / job.location.address).
+4. dueDays XOR dueDate — never set both. dueDays defaults to 30; use dueDate (YYYY-MM-DD) when an absolute date is needed.
+5. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage). It is a decimal — 0 means no tax, 0.0825 = 8.25%.
+6. Document type is "customerOrder" for proposals (the enum also has bidRequest, customerInvoice, vendorBill, vendorOrder — don't use those here).
+7. description = scope of work (compose from payload.scope). footer = exclusions text (payload.exclusions).
+8. create_document REQUIRES: jobId, name, type, fromName, toName, taxRate. All required — don't omit any.
+
+BUILD SEQUENCE
+═══════════════════
+Stage A — Identify the preparer:
+1. The user's opening reply will name the preparer (default Kareem if unspecified — always confirm). Call find_user with that name. The proxy filters to @purplepainting.net non-machine users and returns matches with { name, emailAddress, phoneNumber }. If multiple match, ask the user to pick. Once chosen, use those exact values as fromName / fromEmailAddress / fromPhoneNumber.
+
+Stage B — Confirm the recipient:
+2. Default recipient = the customer's primary contact (from payload.customer or payload.recipient if present, otherwise ask the user for name + email). Confirm with the user, then use toName / toEmailAddress.
+
+Stage C — Fetch job context, then create the barebones document:
+3. Call get_job_cost_items with jobId FIRST. This returns BOTH the job's location and all cost-item nodes you'll need in Stage D. Remember job.location.name and job.location.address for the next step.
+4. Call create_document with ALL required fields PLUS:
+   - name: exactly "Proposal" (or another template name verbatim — see Rule 2). Do NOT put the customer/address here.
+   - subject: the descriptive title (e.g. "Smith Family — 123 Main St — Interior Repaint Proposal").
+   - type: "customerOrder"
+   - fromName, fromEmailAddress, fromPhoneNumber (from find_user)
+   - toName, toEmailAddress (recipient)
+   - taxRate: 0
+   - dueDays: 30 (or dueDate if absolute — never both)
+   - issueDate: today (YYYY-MM-DD) when known
+   - jobLocationName: job.location.name from step 3
+   - jobLocationAddress: job.location.address from step 3
+   - description: composed scope-of-work text
+   - footer: composed exclusions text
+   Capture createdDocument.id from the result.
+
+Stage D — Mirror the budget as line items (PROVEN structure):
+5. From the get_job_cost_items result you already have, build ONE costGroup wrapper containing every cost item as a costItem child, then call update_document with this lineItems array:
+     lineItems: [
+       {
+         _type: "costGroup",
+         name: "Full Interior Painting",
+         lineItems: [
+           {
+             _type: "costItem",
+             jobCostItemId: <node.id>,
+             name: <node.name>,
+             quantity: <node.quantity>,        // REAL number from the node (e.g. 396, 120) — not a formula
+             costCodeId: <node.costCode.id>,
+             costTypeId: <node.costType.id>,
+             unitId: <node.unit.id>,
+             unitCost: <node.unitCost>,
+             unitPrice: <node.unitPrice>,
+           },
+           ... one per cost item ...
+         ],
+       },
+     ]
+   Every costItem child MUST carry the full field set above — omitting costCodeId/costTypeId/unitId/unitCost/unitPrice is what causes JT to show $0 or wrong codes on the document. The discriminators are exactly "costGroup" / "costItem", not "newCostGroup" / "newCostItem".
+
+Stage E — Conversational edits:
+5. Honor user-driven edits via update_document. Examples:
+   - "change the footer" → update_document { id, footer: "<new text>" }
+   - "drop that line" → update_document { id, lineItems: [<reduced list>] }
+   - "different preparer — Peter" → re-run find_user("Peter"), then update_document { id, fromName, fromEmailAddress, fromPhoneNumber }
+
+Stage F — Summary:
+6. After the document is created and any edits applied, reply with EXACTLY this structure (no pipe "|" table syntax, no rehash):
+
+## ✅ Document Ready
+
+**Job:** <job name>
+**Document:** <document name>
+**Preparer:** <preparer name>
+**Recipient:** <recipient name>
+
+**Line Items (<count>):**
+- <item name> — <quantity> @ <unitPrice>
+- <item name> — <quantity> @ <unitPrice>
+(one bullet per line item)
+
+**[Open document in JobTread](https://app.jobtread.com/documents/<documentId>)**
+
+CURRENT DOCUMENT CONTEXT
+═══════════════════
+${JSON.stringify({
+  documentId: contextRef.current.documentId,
+  preparer: contextRef.current.preparer,
+  recipient: contextRef.current.recipient,
+  recentErrors: contextRef.current.errors.slice(-3),
+}, null, 2)}
+
+BUILT BUDGET (from BuildChat)
+═══════════════════
+${JSON.stringify(builtBudget || null, null, 2)}
+
+PAYLOAD (scope + exclusions + tier + line items)
+═══════════════════
+${JSON.stringify(payload, null, 2)}`;
+  }
+
+  async function executeAction(name, input) {
+    let result;
+    try {
+      const resp = await fetch("/api/jobtread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: name, payload: input }),
+      });
+      result = await resp.json();
+      if (!resp.ok) {
+        contextRef.current.errors.push({ action: name, status: resp.status, error: result });
+      }
+    } catch (e) {
+      result = { error: "fetch_failed", message: e.message };
+      contextRef.current.errors.push({ action: name, error: e.message });
+    }
+
+    const ctx = contextRef.current;
+    if (name === "create_document") {
+      const id = result?.createDocument?.createdDocument?.id;
+      if (id) ctx.documentId = id;
+    } else if (name === "find_user") {
+      // Single unambiguous match → remember as the current preparer so the
+      // system prompt's status block carries it forward. Multiple matches
+      // wait for the model to pick before populating context.
+      const matches = Array.isArray(result?.matches) ? result.matches : [];
+      if (matches.length === 1) ctx.preparer = matches[0];
+    }
+
+    return result;
+  }
+
+  function toApiMessages(history) {
+    return history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  async function callClaude(history) {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        system: buildSystemPrompt(),
+        tools: DOCUMENT_CHAT_TOOLS,
+        messages: toApiMessages(history),
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      throw new Error(`/api/chat HTTP ${resp.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.type === "error" || data.error) {
+      throw new Error(data.error?.message || "API error");
+    }
+    return data;
+  }
+
+  async function sendMessage() {
+    if (!inputText.trim() || thinking) return;
+    const userText = inputText.trim();
+    setInputText("");
+    setError("");
+
+    let history = [...messages, { role: "user", content: userText }];
+    setMessages(history);
+    setThinking(true);
+
+    const MAX_STEPS = 20;
+    try {
+      for (let step = 0; step < MAX_STEPS; step++) {
+        const data = await callClaude(history);
+        history = [...history, { role: "assistant", content: data.content }];
+        setMessages(history);
+
+        if (data.stop_reason !== "tool_use") {
+          return;
+        }
+
+        const toolUseBlocks = (data.content || []).filter((b) => b.type === "tool_use");
+        const toolResultBlocks = [];
+        for (const block of toolUseBlocks) {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await executeAction(block.name, block.input);
+          toolResultBlocks.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        }
+        history = [...history, { role: "user", content: toolResultBlocks }];
+        setMessages(history);
+      }
+      setMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps — pausing. What would you like to do?" }]);
+    } catch (e) {
+      setError(e.message || "Something went wrong");
+      setMessages((prev) => [...prev, { role: "assistant", content: `(Error: ${e.message})` }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return (
+    <div style={{
+      border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+      borderRadius: 8,
+      background: "var(--color-background-primary, #fff)",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "8px 12px",
+        background: "var(--color-background-secondary, #f3f3f0)",
+        borderBottom: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
+        fontSize: 11,
+        color: "var(--color-text-secondary, #666)",
+      }}>
+        <span>Creating document in JobTread</span>
+      </div>
+
+      <div ref={scrollerRef} style={{ padding: 12, maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.map((m, i) => {
+          const text = buildChatDisplayText(m);
+          if (!text) return null;
+          return <ChatBubble key={i} message={{ role: m.role, text }} />;
+        })}
+        {thinking && (
+          <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
+            Thinking…
+          </div>
+        )}
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", padding: 12 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !thinking) sendMessage(); }}
+            disabled={thinking}
+            placeholder='e.g. "Peter is preparing, send to the primary contact"'
             style={{
               flex: 1,
               padding: "8px 10px",

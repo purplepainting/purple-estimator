@@ -301,6 +301,144 @@ const ACTIONS = {
       return paveCall(q, grantKey);
     },
   },
+
+  find_user: {
+    required: ['name'],
+    // Search internal team members (purplepainting.net, non-machine accounts)
+    // by name fragment. Returns { name, emailAddress, phoneNumber } per match
+    // so the chat can use them as fromName / fromEmailAddress / fromPhoneNumber
+    // when creating a document.
+    async execute({ name }, grantKey) {
+      const q = {
+        organization: {
+          $: { id: ORG_ID },
+          memberships: {
+            $: { size: 100 },
+            nodes: {
+              user: { id: {}, name: {}, emailAddress: {}, phoneNumber: {}, isMachine: {} },
+            },
+          },
+        },
+      };
+      const raw = await paveCall(q, grantKey);
+      const nodes = raw?.organization?.memberships?.nodes || [];
+      const needle = String(name || '').trim().toLowerCase();
+      const matches = nodes
+        .map((n) => n?.user)
+        .filter((u) => u && !u.isMachine)
+        .filter((u) => (u.emailAddress || '').toLowerCase().endsWith('@purplepainting.net'))
+        .filter((u) => !needle || (u.name || '').toLowerCase().includes(needle))
+        .map((u) => ({ name: u.name, emailAddress: u.emailAddress, phoneNumber: u.phoneNumber || null }));
+      return { matches, _httpStatus: raw?._httpStatus ?? 200 };
+    },
+  },
+
+  get_job_cost_items: {
+    required: ['jobId'],
+    // Return everything DocumentChat needs to build proven-shape document line
+    // items in a single call: the job's location (name + address) plus each
+    // leaf cost item with full pricing/coding fields. Each costItem.id is the
+    // jobCostItemId passed to update_document's costItem lineItems.
+    async execute({ jobId }, grantKey) {
+      const q = {
+        job: {
+          $: { id: jobId },
+          location: { name: {}, address: {} },
+          costItems: {
+            $: { size: 100 },
+            nodes: {
+              id: {},
+              name: {},
+              quantity: {},
+              costCode: { id: {} },
+              costType: { id: {} },
+              unit: { id: {} },
+              unitCost: {},
+              unitPrice: {},
+              costGroup: { id: {}, name: {} },
+            },
+          },
+        },
+      };
+      return paveCall(q, grantKey);
+    },
+  },
+
+  create_document: {
+    required: ['jobId', 'name', 'type', 'fromName', 'toName', 'taxRate'],
+    // Create a JobTread document. Required by JT: jobId, name, type, fromName,
+    // toName, taxRate. `name` MUST exactly match a JT TEMPLATE name (e.g.
+    // "Proposal", "Selections", "Change Order", "Interior Scope of work
+    // proposal") — JT rejects custom names. Put the descriptive title in
+    // `subject`. createDocument does NOT inherit the job's location — pass
+    // jobLocationName / jobLocationAddress explicitly. dueDays XOR dueDate
+    // — never set both.
+    async execute(payload, grantKey) {
+      const {
+        jobId, name, type, fromName, toName, taxRate,
+        description, footer, dueDays, dueDate,
+        fromEmailAddress, fromPhoneNumber, toEmailAddress,
+        jobLocationName, jobLocationAddress, subject, issueDate,
+      } = payload;
+      const args = { jobId, name, type, fromName, toName, taxRate };
+      if (description) args.description = description;
+      if (footer) args.footer = footer;
+      // dueDays XOR dueDate — dueDate wins if both are somehow set.
+      if (dueDate) args.dueDate = dueDate;
+      else if (dueDays != null) args.dueDays = dueDays;
+      if (fromEmailAddress) args.fromEmailAddress = fromEmailAddress;
+      if (fromPhoneNumber) args.fromPhoneNumber = fromPhoneNumber;
+      if (toEmailAddress) args.toEmailAddress = toEmailAddress;
+      if (jobLocationName) args.jobLocationName = jobLocationName;
+      if (jobLocationAddress) args.jobLocationAddress = jobLocationAddress;
+      if (subject) args.subject = subject;
+      if (issueDate) args.issueDate = issueDate;
+
+      const q = { createDocument: { $: args, createdDocument: { id: {}, name: {} } } };
+      return paveCall(q, grantKey);
+    },
+  },
+
+  update_document: {
+    required: ['id'],
+    // Update an existing document. Any subset of fields may be passed; only
+    // present ones are forwarded. lineItems mirror the budget via the
+    // "existingCostItem" variant — { jobCostItemId, name?, quantity?,
+    // unitPrice? } — referencing JOB cost items (NOT sourceCostItemId, NOT
+    // organizationCostItemId).
+    async execute(payload, grantKey) {
+      const {
+        id, name, fromName, toName, taxRate, dueDays,
+        description, footer, fromEmailAddress, fromPhoneNumber, toEmailAddress,
+        lineItems,
+      } = payload;
+      const args = { id };
+      if (name) args.name = name;
+      if (fromName) args.fromName = fromName;
+      if (toName) args.toName = toName;
+      if (taxRate != null) args.taxRate = taxRate;
+      if (dueDays != null) args.dueDays = dueDays;
+      if (description) args.description = description;
+      if (footer) args.footer = footer;
+      if (fromEmailAddress) args.fromEmailAddress = fromEmailAddress;
+      if (fromPhoneNumber) args.fromPhoneNumber = fromPhoneNumber;
+      if (toEmailAddress) args.toEmailAddress = toEmailAddress;
+      if (Array.isArray(lineItems)) args.lineItems = lineItems;
+
+      // updateDocument has NO `updatedDocument` read-back (the field does not
+      // exist on the root mutation type, so reading it returns a GraphQL field
+      // error that masquerades as an "intermittent" failure). Nest the
+      // `document` root field with its own $: { id } to read the updated state
+      // back. price is the live total after JT processes the line items.
+      const q = {
+        updateDocument: {
+          $: args,
+          document: { $: { id: args.id }, id: {}, name: {}, price: {} },
+        },
+      };
+      return paveCall(q, grantKey);
+    },
+  },
 };
 
 // ── HTTP handler ──────────────────────────────────────────────────────────
