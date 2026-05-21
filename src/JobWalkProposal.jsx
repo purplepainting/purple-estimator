@@ -4188,11 +4188,18 @@ const BUILD_CHAT_TOOLS = [
 // can drop straight into create_cost_item.
 async function runSearchCatalog({ query, coats }) {
   const q = (query || "").trim();
+  const words = q.split(/\s+/).filter(Boolean);
   let sel = supabase
     .from("catalog_items")
-    .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_name,unit_cost,unit_price,substrate,condition,coats,kind")
-    .or(`name.ilike.%${q}%,code_name.ilike.%${q}%,substrate.ilike.%${q}%`)
-    .limit(25);
+    .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_name,unit_cost,unit_price,substrate,condition,coats,kind");
+  // Each word must match at least one of name / code_name / substrate.
+  // Chained .or() filters are AND'd together by PostgREST — mirrors the
+  // tokenize-and-OR pattern in api/jobtread.js's nameLikeCondition.
+  for (const w of (words.length ? words : [q])) {
+    const esc = w.replace(/[%,()]/g, " ").trim();
+    if (esc) sel = sel.or(`name.ilike.%${esc}%,code_name.ilike.%${esc}%,substrate.ilike.%${esc}%`);
+  }
+  sel = sel.limit(25);
   const { data, error } = await sel;
   if (error || !data) return { matches: [] };
   let rows = data;
