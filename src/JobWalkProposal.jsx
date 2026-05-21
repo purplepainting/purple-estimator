@@ -3928,12 +3928,18 @@ function BuildChat({ payload, onBuilt }) {
   // is either a string OR an array of typed blocks (text / tool_use / tool_result).
   // The opening assistant message is display-only — it's sliced off when sending
   // to /api/chat because Anthropic requires the first message to be from the user.
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.",
-    },
-  ]);
+  const [messages, setMessages] = useState(() => {
+    const c = (payload?.customerName || "").trim();
+    const a = (payload?.siteAddress || "").trim();
+    const opening = c && a
+      ? `Ready to build for ${c} at ${a}. I'll search for the customer in JobTread first — if there's a match I'll use it, otherwise I'll create the customer and the job at that address. Anything to change before I start?`
+      : c
+        ? `Ready to build for ${c}. The site address wasn't captured from the transcript — what's the job address?`
+        : a
+          ? `Ready to build at ${a}. The customer name wasn't captured from the transcript — what's the customer's name?`
+          : "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.";
+    return [{ role: "assistant", content: opening }];
+  });
   const [inputText, setInputText] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
@@ -4003,9 +4009,9 @@ CRITICAL JT RULES
 BUILD SEQUENCE
 ═══════════════════
 Stage A — Resolve customer + job:
-1. If you don't have the customer name + job address, ask the user.
-2. Call find_customer with whatever name fragment the user gave — single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for full details (contact name, email, phone, address) and then call create_customer. Never skip the find_customer step.
-3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job.
+1. The payload may already carry payload.customerName, payload.siteAddress, and payload.jobName — these are pre-filled from the parsed transcript and confirmed by the user in Step 2. USE THEM DIRECTLY whenever non-empty. Do NOT re-ask the user for any identity field that the payload already carries. Only ask if the corresponding payload field is empty ("").
+2. Call find_customer with payload.customerName (or whatever name fragment the user gave if payload.customerName was empty). Single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for the contact details still missing (email, phone — name and address come from the payload) and then call create_customer with name=payload.customerName and address=payload.siteAddress. Never skip the find_customer step.
+3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job with name=payload.jobName (fall back to payload.siteAddress if payload.jobName is empty), address=payload.siteAddress.
 4. When calling create_job, always include tier (from payload.tier) and bidOrigin (from payload.bidOrigin) so the custom fields populate.
 
 Stage B — Top-level structure (create ONLY the side(s) that will hold work):
@@ -4075,6 +4081,8 @@ ${JSON.stringify({
 
 PAYLOAD (what you're building)
 ═══════════════════
+IDENTITY FIELDS — payload.customerName, payload.siteAddress, and payload.jobName at the top level are pre-filled from the transcript and confirmed by the user in Step 2. Use them DIRECTLY in find_customer / create_customer / create_job; do not re-ask the user for them. They will only be "" when the transcript didn't state them AND the user didn't fill them in.
+
 ${JSON.stringify(payload, null, 2)}`;
   }
 
