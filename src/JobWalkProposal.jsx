@@ -3783,7 +3783,7 @@ const BUILD_CHAT_TOOLS = [
   },
   {
     name: "create_cost_item",
-    description: "Create a cost item under a cost group. organizationCostItemId links to the org catalog. quantityFormula '{Parent Quantity}' (literal, with braces) inherits from the parent subgroup.",
+    description: "Create a cost item under a cost group. organizationCostItemId links to the org catalog. The cost item carries its OWN dimensional quantityFormula (e.g. \"2 * (12 + 14) * 9\" for walls); the parent subgroup stays empty of quantity so the item's quantity is what job.costItems exposes via the API.",
     input_schema: {
       type: "object",
       properties: {
@@ -3794,7 +3794,7 @@ const BUILD_CHAT_TOOLS = [
         costCodeId: { type: "string", description: "Cost code ID (the 'code' field from the catalog)." },
         costTypeId: { type: "string", description: "Labor or Materials — see system prompt." },
         unitId: { type: "string", description: "Unit ID." },
-        quantityFormula: { type: "string", description: "Formula. Use '{Parent Quantity}' (literal, with braces) to inherit from the parent." },
+        quantityFormula: { type: "string", description: "Dimensional formula for this item, e.g. '2 * (12 + 14) * 9' for walls or '12 * 14' for a ceiling. The item carries its own quantity; do not inherit from the parent." },
         quantity: { type: "number", description: "Literal numeric quantity if no formula." },
         unitCost: { type: "number", description: "Per-unit cost (catalog default × tier multiplier)." },
         unitPrice: { type: "number", description: "Per-unit price (catalog default × tier multiplier)." },
