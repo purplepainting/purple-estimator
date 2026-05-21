@@ -3889,7 +3889,7 @@ CRITICAL JT RULES
 ═══════════════════
 1. Cost item catalog link = organizationCostItemId (NOT sourceCostItemId).
 2. Tier multiplier applies to unitCost AND unitPrice. Margin stays constant.
-3. Cost items under a subgroup use quantityFormula: "{Parent Quantity}" (literal, including braces).
+3. Cost items carry their own dimensional quantityFormula (e.g. "2 * (12 + 14) * 9") — do NOT use "{Parent Quantity}". The subgroup above them stays empty of quantity; the API's job.costItems endpoint reads quantity off the item directly.
 4. Flat creates only: parent → subgroup → item. Never nest lineItems on createCostGroup.
 5. Picklist custom fields can't be empty — only set them when you have a value.
 6. Job Type from tier: standard→"Residential - Standard Home", production→"Property Management / Production", highend→"Residential - Custom House", prevailing→"Prevailing Wage".
@@ -3911,20 +3911,20 @@ Stage C — Rooms (interior):
 For each room in payload.rooms:
 7. Create parent cost group with parentCostGroupId=<Interior.id>.
 8. For each enabled substrate, create subgroup + cost item:
-   a. Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
-      Quantity formulas (substitute actual dims as numbers):
-        walls: "2 * (<L> + <W>) * <H>"
-        ceiling: "<L> * <W>"
-        baseboard: "2 * (<L> + <W>)"
-        doors: literal doors.count (use "quantity" not "quantityFormula")
-      Unit IDs: walls/ceiling=SF, baseboard=LF, doors=EA.
-   b. Cost item under that subgroup:
+   a. Subgroup is a plain organizational container — create it with NO quantityFormula and NO quantity. Its only job is grouping the cost item underneath it.
+      Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
+      Unit IDs (for display on the subgroup): walls/ceiling=SF, baseboard=LF, doors=EA.
+   b. Cost item under that subgroup carries the dimensional formula ITSELF — do NOT use "{Parent Quantity}" inheritance. This is what makes the item's quantity readable via the job.costItems API.
       - organizationCostItemId = catalog entry by substrate+coats
       - name = "<Substrate label> - Existing - <Coats label>" (e.g. "Drywall Walls - Existing - 2-Coats")
       - costCodeId = catalog "code" for that substrate
       - costTypeId = Labor
       - unitId = matching unit
-      - quantityFormula = "{Parent Quantity}" (literal)
+      - quantityFormula / quantity (substitute the room's actual L, W, H, doorCount as numbers):
+          walls cost item:     quantityFormula = "2 * (<L> + <W>) * <H>"
+          ceiling cost item:   quantityFormula = "<L> * <W>"
+          baseboard cost item: quantityFormula = "2 * (<L> + <W>)"
+          doors cost item:     quantity = <doorCount>  (literal EA, no formula)
       - unitCost, unitPrice = catalog defaults × tier multiplier. If you don't know catalog defaults, ASK the user.
 
 Stage D — Scope buckets:
