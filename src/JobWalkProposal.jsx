@@ -4203,7 +4203,27 @@ async function runSearchCatalog({ query, coats }) {
   const { data, error } = await sel;
   if (error || !data) return { matches: [] };
   let rows = data;
-  if (coats) rows = rows.filter((r) => (r.coats || "").toLowerCase().includes(coats.toLowerCase()));
+  if (coats) {
+    // Match on the two real dimensions the coat field encodes — coat count
+    // (1 vs 2) and whether it's primed — instead of fuzzy string containment.
+    // Resolves each tier to exactly one row and tolerates input variants
+    // ("Prime + 2", "Prime+Paint:2-Coats", "2-Coats", "prime + paint : 2-coats").
+    const feats = (s) => {
+      const t = String(s || "").toLowerCase();
+      let n = null;
+      if (/\b2\b|2\s*-?\s*coat|two/.test(t)) n = 2;
+      else if (/\b1\b|1\s*-?\s*coat|one/.test(t)) n = 1;
+      return { primed: t.includes("prime"), coats: n };
+    };
+    const want = feats(coats);
+    if (want.coats !== null) {
+      const filtered = rows.filter((r) => {
+        const g = feats(r.coats);
+        return g.coats === want.coats && g.primed === want.primed;
+      });
+      if (filtered.length > 0) rows = filtered;
+    }
+  }
   return {
     matches: rows.map((r) => ({
       organizationCostItemId: r.id,
