@@ -275,6 +275,32 @@ const ACTIONS = {
       return paveCall(q, grantKey);
     },
   },
+
+  get_catalog_prices: {
+    required: ['ids'],
+    // Looks up live catalog unitCost / unitPrice for one or more
+    // organizationCostItemIds. BuildChat batches a single call up front and
+    // multiplies the returned values by the tier multiplier before writing
+    // them onto each createCostItem (otherwise the JT budget shows $0).
+    async execute({ ids }, grantKey) {
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return { _failed_at: 'ids_required', _message: 'ids must be a non-empty array of organizationCostItemIds.' };
+      }
+      const q = {
+        organization: {
+          $: { id: ORG_ID },
+          costItems: {
+            $: {
+              where: { and: [[['job', 'id'], null], ['id', 'in', ids]] },
+              size: 50,
+            },
+            nodes: { id: {}, name: {}, unitCost: {}, unitPrice: {} },
+          },
+        },
+      };
+      return paveCall(q, grantKey);
+    },
+  },
 };
 
 // ── HTTP handler ──────────────────────────────────────────────────────────
