@@ -3778,7 +3778,7 @@ const BUILD_CHAT_TOOLS = [
         tier: { type: "string", description: "Pricing tier — 'standard' | 'production' | 'highend' | 'prevailing'. Maps to the Job Type custom field." },
         bidOrigin: { type: "string", description: "How the bid came in — 'Job Walk' | 'Digital Takeoff' | 'Partner Work Order'. Maps to the How Did Bid Come In custom field." },
       },
-      required: ["customerId", "name"],
+      required: ["customerId", "name", "address"],
     },
   },
   {
