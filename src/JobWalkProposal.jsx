@@ -4204,21 +4204,25 @@ async function runSearchCatalog({ query, coats }) {
   if (error || !data) return { matches: [] };
   let rows = data;
   if (coats) {
-    // Tolerant coats match — stored values are picky ("Prime + Paint : 2-Coats"
-    // with spaces around the colon). Normalize both sides (lowercase, drop
-    // whitespace and : + - ) so "Prime + 2", "Prime+Paint:2-Coats",
-    // "prime + paint : 2-coats", "2-coats" all resolve. Bidirectional includes
-    // so a partial input still matches the full stored value.
-    const norm = (s) => String(s || "").toLowerCase().replace(/[\s:+\-]/g, "");
-    const b = norm(coats);
-    const filtered = rows.filter((r) => {
-      const a = norm(r.coats);
-      return a.includes(b) || b.includes(a);
-    });
-    // If the coats filter excluded everything, degrade to the unfiltered
-    // substrate matches so the agent/user can still pick — better than
-    // returning nothing and falling back to begging for IDs.
-    if (filtered.length > 0) rows = filtered;
+    // Match on the two real dimensions the coat field encodes — coat count
+    // (1 vs 2) and whether it's primed — instead of fuzzy string containment.
+    // Resolves each tier to exactly one row and tolerates input variants
+    // ("Prime + 2", "Prime+Paint:2-Coats", "2-Coats", "prime + paint : 2-coats").
+    const feats = (s) => {
+      const t = String(s || "").toLowerCase();
+      let n = null;
+      if (/\b2\b|2\s*-?\s*coat|two/.test(t)) n = 2;
+      else if (/\b1\b|1\s*-?\s*coat|one/.test(t)) n = 1;
+      return { primed: t.includes("prime"), coats: n };
+    };
+    const want = feats(coats);
+    if (want.coats !== null) {
+      const filtered = rows.filter((r) => {
+        const g = feats(r.coats);
+        return g.coats === want.coats && g.primed === want.primed;
+      });
+      if (filtered.length > 0) rows = filtered;
+    }
   }
   return {
     matches: rows.map((r) => ({
