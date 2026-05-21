@@ -2052,6 +2052,39 @@ Reasoning hints:
     const scopeBuckets = rooms.filter((r) => r.type === "scope");
     const tmItems = rooms.filter((r) => r.type === "tm");
 
+    // Pre-filter catalogFull by job nature to keep the build prompt under the
+    // Anthropic 30K ITPM ceiling. Cost-code numbers: 1000–4999 = interior,
+    // 5000–7999 = exterior, 8000+ = universal/shared (repairs, cleaning,
+    // materials — always keep). When the job has BOTH interior and exterior
+    // scope, keep all rows (correctness > token savings). Rows with a missing
+    // or non-numeric costCodeNumber are kept as well — unknowns never drop.
+    const isExteriorSubstrate = (s) => {
+      const x = (s || "").toLowerCase();
+      return x.startsWith("exterior_") || x === "fence_deck" || x === "metal";
+    };
+    const hasInterior = physicalRooms.length > 0 || scopeBuckets.some((b) => !isExteriorSubstrate(b.substrate));
+    const hasExterior = scopeBuckets.some((b) => isExteriorSubstrate(b.substrate));
+    let catalogFullForPayloadFiltered = catalogFullForPayload;
+    let _filterMode = "both";
+    if (hasInterior && !hasExterior) {
+      _filterMode = "interior";
+      catalogFullForPayloadFiltered = catalogFullForPayload.filter((r) => {
+        const code = parseInt(r.costCodeNumber, 10);
+        if (!Number.isFinite(code)) return true;
+        return code < 5000 || code >= 8000;
+      });
+    } else if (hasExterior && !hasInterior) {
+      _filterMode = "exterior";
+      catalogFullForPayloadFiltered = catalogFullForPayload.filter((r) => {
+        const code = parseInt(r.costCodeNumber, 10);
+        if (!Number.isFinite(code)) return true;
+        return code >= 5000;
+      });
+    }
+    if (catalogFullForPayload.length) {
+      console.log(`catalogFull filtered: ${catalogFullForPayload.length} -> ${catalogFullForPayloadFiltered.length} for ${_filterMode}`);
+    }
+
     // Map each T&M item to its catalog ID. Read from the `tmCatalog` STATE var
     // (Supabase mirror, fallback to module constant) — not the module constant
     // directly — so the live cost-code id flows through. NOTE: match.code is
@@ -2097,7 +2130,7 @@ Reasoning hints:
       scope: selectedScope,
       exclusions: selectedExclusions,
       catalog: catalogIds,
-      catalogFull: catalogFullForPayload,
+      catalogFull: catalogFullForPayloadFiltered,
       tmCatalog: tmCatalog,
       ...(inputMode === "takeoff" && {
         takeoffMeta: {
@@ -2157,7 +2190,7 @@ Reasoning hints:
     const text = `BUILD THIS JOB IN JOBTREAD:
 
 \`\`\`json
-${JSON.stringify(payload, null, 2)}
+${JSON.stringify(payload)}
 \`\`\`
 
 Before building the cost groups, ASK THE USER for the following (one batch, using ask_user_input_v0):
@@ -4468,7 +4501,7 @@ PAYLOAD (what you're building)
 ═══════════════════
 IDENTITY FIELDS — payload.customerName, payload.siteAddress, and payload.jobName at the top level are pre-filled from the transcript and confirmed by the user in Step 2. Use them DIRECTLY in find_customer / create_customer / create_job; do not re-ask the user for them. They will only be "" when the transcript didn't state them AND the user didn't fill them in.
 
-${JSON.stringify(payload, null, 2)}`;
+${JSON.stringify(payload)}`;
   }
 
   // Execute one tool call via /api/jobtread. Returns the raw JT response (or
@@ -4956,7 +4989,7 @@ ${JSON.stringify(builtBudget || null, null, 2)}
 
 PAYLOAD (scope + exclusions + tier + line items)
 ═══════════════════
-${JSON.stringify(payload, null, 2)}`;
+${JSON.stringify(payload)}`;
   }
 
   async function executeAction(name, input) {
