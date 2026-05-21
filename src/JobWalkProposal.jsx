@@ -4165,7 +4165,52 @@ const BUILD_CHAT_TOOLS = [
       required: ["ids"],
     },
   },
+  {
+    name: "search_catalog",
+    description: "Search the Purple Painting catalog (Supabase mirror of JobTread) for cost items by keyword. Use this to find organizationCostItemId, costCodeId (code_id), unitId, unitCost, and unitPrice for any substrate BEFORE asking the user. Searches name, code_name, and substrate. Returns up to 25 matches.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Keyword(s) to match against item name, cost-code name, or substrate. E.g. 'fascia', 'soffit', 'wood eaves', 'railing', 'exterior trim'." },
+        coats: { type: "string", description: "Optional. Filter to a coat level: '1-Coat', '2-Coats', or 'Prime + Paint : 2-Coats'." },
+      },
+      required: ["query"],
+    },
+  },
 ];
+
+// search_catalog: keyword search of the Supabase catalog mirror so the build
+// can self-serve organizationCostItemId / costCodeId / unitId / unitCost /
+// unitPrice for any substrate (fascia, soffit, eaves, trim, railings, etc.)
+// BEFORE pestering the user. Returns up to 25 matches in a shape the build
+// can drop straight into create_cost_item.
+async function runSearchCatalog({ query, coats }) {
+  const q = (query || "").trim();
+  let sel = supabase
+    .from("catalog_items")
+    .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_name,unit_cost,unit_price,substrate,condition,coats,kind")
+    .or(`name.ilike.%${q}%,code_name.ilike.%${q}%,substrate.ilike.%${q}%`)
+    .limit(25);
+  const { data, error } = await sel;
+  if (error || !data) return { matches: [] };
+  let rows = data;
+  if (coats) rows = rows.filter((r) => (r.coats || "").toLowerCase().includes(coats.toLowerCase()));
+  return {
+    matches: rows.map((r) => ({
+      organizationCostItemId: r.id,
+      name: r.name,
+      costCodeId: r.code_id,
+      costCodeNumber: r.code,
+      costCodeName: r.code_name,
+      costTypeId: r.cost_type_id,
+      unitId: r.unit_id,
+      unitName: r.unit_name,
+      unitCost: r.unit_cost != null ? Number(r.unit_cost) : null,
+      unitPrice: r.unit_price != null ? Number(r.unit_price) : null,
+      substrate: r.substrate, condition: r.condition, coats: r.coats, kind: r.kind,
+    })),
+  };
+}
 
 // Extract user-visible text from a BuildChat API-shape message. Returns null
 // when the message has no displayable text (pure tool_use turn or tool_result
@@ -4264,6 +4309,7 @@ CRITICAL JT RULES
 5. Picklist custom fields can't be empty — only set them when you have a value.
 6. Job Type from tier: standard→"Residential - Standard Home", production→"Property Management / Production", highend→"Residential - Custom House", prevailing→"Prevailing Wage".
 7. How Did Bid Come In: payload.bidOrigin "Job Walk"→"Requested Job Walk", "Digital Takeoff"→"Received Digital Bid Invite", "Partner Work Order"→"Partner Work Order".
+8. Catalog is the source of truth. For any non-interior substrate (fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), call search_catalog FIRST and pick the best match; asking the user for organizationCostItemId / costCodeId is a last resort only when search returns nothing usable.
 
 BUILD SEQUENCE
 ═══════════════════
@@ -4303,7 +4349,7 @@ Stage D — Scope buckets:
 For each item in payload.scopeBuckets:
 9. parent = Exterior if substrate starts with "exterior_", else Interior.
 10. Create cost group with literal quantity + unitId by item.unit.
-11. Create cost item. For substrates IN the interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] × tier multiplier (same as Stage C). For substrates NOT in the interior catalog, ASK the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Do NOT leave unitCost/unitPrice null.
+11. Create cost item. For substrates IN the 4-item interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] × tier multiplier (same as Stage C). For substrates NOT in the interior catalog (fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), call search_catalog with a keyword for that substrate (e.g. "fascia", "soffit", "wood eaves", "railing", "exterior trim", "metal", "cabinet") to get its organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice. Pick the match whose name / coats / condition best fit the item (use the coats filter to narrow to "1-Coat" / "2-Coats" / "Prime + Paint : 2-Coats"). Multiply unitCost AND unitPrice by the tier multiplier. ONLY if search_catalog returns no usable match may you ask the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Never leave unitCost/unitPrice null.
 
 Stage E — T&M items:
 For each item in payload.tmItems:
@@ -4349,6 +4395,18 @@ ${JSON.stringify(payload, null, 2)}`;
   // an error object). Side effect: updates contextRef with any returned IDs.
   async function executeAction(name, input) {
     let result;
+    // search_catalog runs CLIENT-SIDE against the Supabase catalog mirror — it
+    // does not round-trip through /api/jobtread. Same tool_use_id linkage and
+    // tool_result shape; just a different data source.
+    if (name === "search_catalog") {
+      try {
+        result = await runSearchCatalog(input || {});
+      } catch (e) {
+        result = { error: "search_failed", message: e.message };
+        contextRef.current.errors.push({ action: name, error: e.message });
+      }
+      return result;
+    }
     try {
       const resp = await fetch("/api/jobtread", {
         method: "POST",
