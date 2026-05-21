@@ -60,13 +60,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'invalid_json', message: err.message, preview: rawBody.slice(0, 200) });
   }
 
-  const { model, max_tokens, system, messages, tools } = body || {};
+  const { model, max_tokens, system, messages, tools, stream } = body || {};
   if (!model) return res.status(400).json({ error: 'Missing required field: model' });
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Missing or empty required field: messages' });
   }
 
-  console.log('chat proxy: model:', model, 'max_tokens:', max_tokens, 'msg_count:', messages.length, 'tool_count:', Array.isArray(tools) ? tools.length : 0);
+  const isStream = stream === true;
+  console.log('chat proxy: model:', model, 'max_tokens:', max_tokens, 'msg_count:', messages.length, 'tool_count:', Array.isArray(tools) ? tools.length : 0, 'stream:', isStream);
 
   // Prompt caching: mark the system prompt and the tools block as ephemeral so
   // Anthropic caches them across the build-loop turns. Cached input tokens
@@ -100,9 +101,48 @@ export default async function handler(req, res) {
         max_tokens: max_tokens ?? 4096,
         ...(cachedSystem ? { system: cachedSystem } : {}),
         ...(cachedTools ? { tools: cachedTools } : {}),
+        ...(isStream ? { stream: true } : {}),
         messages,
       }),
     });
+
+    // Streaming pass-through (opt-in via body.stream === true). Bytes flow as
+    // they arrive, so the function never goes idle long enough for Vercel to
+    // kill it with FUNCTION_INVOCATION_TIMEOUT. The buffered path below stays
+    // BYTE-FOR-BYTE unchanged for non-streaming callers (BuildChat /
+    // DocumentChat / job-info / categorize / ClarifyChat) — they don't set
+    // stream and still get a single JSON response.
+    if (isStream) {
+      console.log('chat proxy upstream status (stream):', upstream.status);
+      if (!upstream.ok) {
+        // Upstream rejected the stream request (auth, schema, etc.). Anthropic
+        // returns plain JSON here, not SSE — pass through so the client's
+        // existing !response.ok branch surfaces it.
+        const errText = await upstream.text();
+        console.error('chat proxy upstream error (stream req):', upstream.status, errText.slice(0, 200));
+        res.status(upstream.status);
+        res.setHeader('Content-Type', 'application/json');
+        res.send(errText);
+        return;
+      }
+      res.status(200);
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      const reader = upstream.body.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(decoder.decode(value, { stream: true }));
+        }
+      } finally {
+        res.end();
+      }
+      return;
+    }
+
     const data = await upstream.json();
     console.log('chat proxy upstream status:', upstream.status);
     console.log('chat proxy cache:', JSON.stringify(data?.usage || {}));

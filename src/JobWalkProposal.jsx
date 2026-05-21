@@ -18,12 +18,12 @@ const CATALOG_IDS = {
   walls:     { "1coat": "22PWT9nDL9HP", "2coats": "22PWiSS293E2", "prime+2": "22PWiSgjqkaq", code: "22PWmcdKrCnn" },
   ceilings:  { "1coat": "22PWickkTi46", "2coats": "22PWictZ3V84", "prime+2": "22PWicwN2pxL", code: "22PWmcdMcqbZ" },
   baseboard: { "1coat": "22PWiYQt5Pq8", "2coats": "22PWih8XPvPm", code: "22PWmcdjtJ9C" },
-  doors:     { "1coat": "22PXFmQz3HEd", "2coats": "22PXFmRbHAgn", "prime+2": "22PXFmSG2zeV", code: "22PWmcdpBtSV" },
+  doors:     { "1coat": "22PWmgVUki5g", "2coats": "22PWmgivcQCV", "prime+2": "22PXFmB69VLf", code: "22PWmcdUnRSP" },
 };
 
 // T&M Catalog — canonical hourly line items, mapped to cost groups
 const TM_CATALOG = [
-  { id: "22PWTAs6vVPw", name: "Time & Materials",                          code: "1000", codeName: "Interior Walls & Ceilings",       unitCost: 43.33, unitPrice: 65, fitsCostGroups: ["drywall_walls_ceilings"] },
+  { id: "22PWTAdrFgsR", name: "Time & Materials – Interior Walls & Ceilings", code: "1000", codeName: "Interior Walls & Ceilings",       unitCost: 43.33, unitPrice: 65, fitsCostGroups: ["drywall_walls_ceilings"] },
   { id: "22PWmfVWsyZ9", name: "Time & Materials – Doors",                  code: "2000", codeName: "Doors & Windows",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["doors_frames"] },
   { id: "22PWmfVZLfua", name: "Time & Materials – Windows",                code: "2000", codeName: "Doors & Windows",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["doors_frames"] },
   { id: "22PWmfVaqmfL", name: "Time & Materials – Trim & Beams",           code: "4000", codeName: "Trim & Beams",                    unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["baseboard_trim"] },
@@ -321,7 +321,7 @@ function applyPatchToItem(item, patch) {
 // CLAUDE API HELPERS (with timeout + retry + clear errors)
 // ============================================================================
 
-async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label = "request" }) {
+async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label = "request", stream = false }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -333,6 +333,11 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
+        // stream:true MUST live INSIDE the body — main.jsx's fetch shim only
+        // forwards `body` (init/headers are dropped to avoid the duplicate
+        // Content-Type crash). The /api/chat proxy reads body.stream and
+        // pipes the upstream SSE back.
+        ...(stream ? { stream: true } : {}),
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -342,25 +347,64 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       throw new Error(`${label} HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-
-    if (data.type === "error" || data.error) {
-      throw new Error(`${label} API error: ${data.error?.message || JSON.stringify(data.error)}`);
+    // Extract `rawText` and `stopReason` from either path. Post-text handling
+    // (fence strip → extractJsonObject → JSON.parse with salvage fallback) is
+    // shared so the two paths can't diverge.
+    let rawText;
+    let stopReason = null;
+    if (stream) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      rawText = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();
+        for (const line of lines) {
+          const s = line.trim();
+          if (!s.startsWith("data:")) continue;
+          const payload = s.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          let evt;
+          try { evt = JSON.parse(payload); } catch { continue; }
+          if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+            rawText += evt.delta.text;
+          } else if (evt.type === "message_delta" && evt.delta?.stop_reason) {
+            stopReason = evt.delta.stop_reason;
+          } else if (evt.type === "error") {
+            throw new Error(`${label} API error: ${evt.error?.message || JSON.stringify(evt.error)}`);
+          }
+        }
+      }
+      if (!rawText) throw new Error(`${label}: no text content in response`);
+    } else {
+      const data = await response.json();
+      if (data.type === "error" || data.error) {
+        throw new Error(`${label} API error: ${data.error?.message || JSON.stringify(data.error)}`);
+      }
+      const textBlock = data.content?.find((c) => c.type === "text");
+      if (!textBlock) throw new Error(`${label}: no text content in response`);
+      rawText = textBlock.text;
+      stopReason = data.stop_reason;
     }
 
-    const textBlock = data.content?.find((c) => c.type === "text");
-    if (!textBlock) throw new Error(`${label}: no text content in response`);
-
-    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
-    const wasTruncated = data.stop_reason === "max_tokens";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    // Tolerant extraction: pull the {...} span out of whatever wrapper the
+    // model emitted (prose preamble like "I'll carefully parse...", leading
+    // whitespace, stray heading). JSON.parse + salvage both run on this span.
+    const candidate = extractJsonObject(cleaned);
+    const wasTruncated = stopReason === "max_tokens";
 
     // Try direct parse first
     try {
-      return JSON.parse(cleaned);
+      return JSON.parse(candidate);
     } catch (jsonErr) {
       // If truncated, attempt graceful recovery — keep as many complete array items as possible.
       if (wasTruncated) {
-        const salvaged = salvageTruncatedJSON(cleaned);
+        const salvaged = salvageTruncatedJSON(candidate);
         if (salvaged) {
           // Mark the result so callers can show a soft warning
           salvaged._truncated = true;
@@ -368,7 +412,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
         }
         throw new Error(`${label}: response was truncated and could not be recovered. The job might be too complex — try splitting it into smaller sections, or simplifying the notes.`);
       }
-      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${cleaned.slice(0, 200)}`);
+      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${candidate.slice(0, 200)}`);
     }
   } catch (e) {
     if (e.name === "AbortError") {
@@ -378,6 +422,100 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// Split a long transcript into ~maxChars chunks on timestamp-line boundaries
+// (e.g. "19:29", "34:09" — typical of Otter / voice-to-text exports). Each
+// subsequent chunk gets an overlap: the previous chunk's last block prepended,
+// so a late correction or exclusion doesn't get orphaned. If no timestamps
+// exist, falls back to blank-line paragraph packing. Short input returns
+// [text] so callers can take the single-call path.
+function chunkTranscript(text, maxChars = 6000) {
+  const src = String(text || "");
+  if (src.length <= maxChars) return [src];
+
+  const lines = src.split("\n");
+  const tsRe = /^\s*\d{1,2}:\d{2}\s*$/;
+  const blocks = [];
+  let cur = [];
+  let sawTimestamp = false;
+  for (const ln of lines) {
+    if (tsRe.test(ln)) {
+      sawTimestamp = true;
+      if (cur.length) blocks.push(cur.join("\n"));
+      cur = [ln];
+    } else {
+      cur.push(ln);
+    }
+  }
+  if (cur.length) blocks.push(cur.join("\n"));
+
+  // Fall back to blank-line paragraphs if we found no timestamps.
+  const useBlocks = sawTimestamp && blocks.length >= 2
+    ? blocks
+    : src.split(/\n\s*\n/).filter((p) => p.trim());
+  if (useBlocks.length < 2) return [src];
+
+  // Greedy pack with overlap: never split a block; prepend the previous
+  // chunk's last block to each subsequent chunk.
+  const chunks = [];
+  let acc = [];
+  let accLen = 0;
+  for (const b of useBlocks) {
+    const bLen = b.length + 1; // +1 for joiner
+    if (acc.length > 0 && accLen + bLen > maxChars) {
+      chunks.push(acc.join("\n"));
+      const carryover = acc[acc.length - 1];
+      acc = [carryover];
+      accLen = carryover.length + 1;
+    }
+    acc.push(b);
+    accLen += bLen;
+  }
+  if (acc.length) chunks.push(acc.join("\n"));
+  return chunks;
+}
+
+// Merge per-chunk items-parse results into one { items, questions }. Dedupes
+// items by a stable identity (so overlap-induced duplicates from chunking
+// disappear); questions just concat. Used by the long-transcript items path.
+function mergeItemChunks(perChunk) {
+  const items = [];
+  const questions = [];
+  const seen = new Set();
+  for (const r of perChunk) {
+    const chunkItems = Array.isArray(r) ? r : (r?.items || []);
+    const chunkQuestions = Array.isArray(r) ? [] : (r?.questions || []);
+    for (const it of chunkItems) {
+      const t = it?.type || "room";
+      let key;
+      if (t === "room") {
+        key = JSON.stringify({ t, n: it.name, l: it.length, w: it.width, h: it.height });
+      } else if (t === "scope") {
+        key = JSON.stringify({ t, n: it.name, s: it.substrate, q: it.quantity, u: it.unit });
+      } else if (t === "tm") {
+        key = JSON.stringify({ t, n: it.name, c: it.category, h: it.hours });
+      } else {
+        key = JSON.stringify(it);
+      }
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(it);
+    }
+    questions.push(...chunkQuestions);
+  }
+  return { items, questions };
+}
+
+// Pull the JSON object out of a model response that may have a prose preamble,
+// leading whitespace, or markdown around it. Returns the first '{' .. last '}'
+// span. Returns the input unchanged when there is no recognizable object span
+// (so downstream throws a clear "invalid JSON" error rather than a misleading one).
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return text;
+  return text.slice(start, end + 1);
 }
 
 // Attempt to recover usable content from a truncated JSON response.
@@ -474,7 +612,9 @@ Job-walk transcripts almost always state the customer name and the site address 
 If a field isn't in the transcript, set value to "" (or false for flags) and confidence to "unknown".
 
 Transcript:
-${transcript}`;
+${transcript}
+
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY — your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
 }
 
 function buildItemsPrompt(transcript) {
@@ -757,7 +897,9 @@ RULES FOR OPTIONS:
 - Use _multiPatch + formula strings whenever the answer derives multiple quantities from a measurement
 
 Transcript:
-${transcript}`;
+${transcript}
+
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY — your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
 }
 
 function buildNotesPrompt(notes) {
@@ -1314,6 +1456,11 @@ function detectGroupsFromBuiltBudget(builtBudget, library) {
 
 export default function App() {
   const [library, setLibrary] = useState(DEFAULT_LIBRARY);
+  // Catalog (IDs + live prices) — Supabase mirror is the source of truth; the
+  // hardcoded TM_CATALOG / CATALOG_IDS act as offline fallback so a network
+  // blip mid-estimate can't break a build.
+  const [tmCatalog, setTmCatalog] = useState(TM_CATALOG);
+  const [catalogIds, setCatalogIds] = useState(CATALOG_IDS);
   const [step, setStep] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -1373,6 +1520,67 @@ export default function App() {
     (async () => {
       const stored = await loadFromStorage(STORAGE_KEYS.library, DEFAULT_LIBRARY);
       setLibrary(stored);
+    })();
+  }, []);
+
+  // Load catalog (IDs + prices) from the Supabase mirror on mount.
+  // Source of truth for catalog IDs and unit prices. Falls back to the
+  // hardcoded TM_CATALOG / CATALOG_IDS if the fetch fails or returns empty,
+  // so a network blip can't break a build mid-estimate.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("catalog_items")
+          .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_cost,unit_price,substrate,condition,coats,kind");
+        if (error || !data || data.length === 0) return; // keep hardcoded fallback
+
+        // T&M catalog: shape kind='tm' rows to match TM_CATALOG consumers.
+        // CRITICAL: `code` carries the real cost-code id (code_id), NOT the bare
+        // number — this is what becomes costCodeId on cost-item creation.
+        const tmRows = data
+          .filter((r) => r.kind === "tm")
+          .map((r) => ({
+            id: r.id,
+            name: r.name,
+            code: r.code_id,          // real cost-code id (e.g. 22PWmcdSP9GM)
+            codeNumber: r.code,       // bare number ("2000") for display only
+            codeName: r.code_name,
+            unitCost: r.unit_cost != null ? Number(r.unit_cost) : null,
+            unitPrice: r.unit_price != null ? Number(r.unit_price) : null,
+          }));
+        if (tmRows.length) {
+          // Preserve fitsCostGroups metadata from the hardcoded array by
+          // matching on codeName; mirror rows don't carry it.
+          const merged = tmRows.map((row) => {
+            const hc = TM_CATALOG.find((c) => c.codeName === row.codeName);
+            return hc ? { ...row, fitsCostGroups: hc.fitsCostGroups } : row;
+          });
+          setTmCatalog(merged);
+        }
+
+        // Interior catalog IDs + prices, by substrate group. Match live rows by
+        // the known ids (walls/ceilings/baseboard/interior-doors) and carry
+        // unit_cost/unit_price so the build no longer fetches prices from JT.
+        const byId = Object.fromEntries(data.map((r) => [r.id, r]));
+        const shape = (ids) => {
+          const out = { ...ids };
+          for (const k of Object.keys(ids)) {
+            if (k === "code") continue;
+            const row = byId[ids[k]];
+            if (row) out[k] = { id: row.id, unitCost: Number(row.unit_cost), unitPrice: Number(row.unit_price), unitId: row.unit_id, costTypeId: row.cost_type_id, codeId: row.code_id };
+          }
+          return out;
+        };
+        setCatalogIds({
+          walls: shape(CATALOG_IDS.walls),
+          ceilings: shape(CATALOG_IDS.ceilings),
+          baseboard: shape(CATALOG_IDS.baseboard),
+          doors: shape(CATALOG_IDS.doors),
+        });
+      } catch {
+        // keep hardcoded fallback
+      }
     })();
   }, []);
 
@@ -1520,9 +1728,43 @@ export default function App() {
         return;
       }
 
-      // Voice mode: two parallel calls (Haiku for job info, Sonnet for items).
-      // Kept separate because voice transcripts benefit from Sonnet's deeper parsing
-      // and the parallel calls overlap to reduce wall time.
+      // Voice mode: Haiku for job info (always whole transcript, unchanged),
+      // Sonnet for items. The items path chunks long transcripts on timestamp
+      // boundaries, streams each chunk so it can't 504, then merges + dedupes.
+      // Short transcripts take the single-call path (still streamed — safe).
+      const chunks = chunkTranscript(transcript);
+      const itemsWork = async () => {
+        if (chunks.length === 1) {
+          return callClaude({
+            model: "claude-sonnet-4-6",
+            maxTokens: 6000,
+            timeoutMs: 55000,
+            stream: true,
+            prompt: buildItemsPrompt(chunks[0]),
+            label: "items",
+          });
+        }
+        // Long path: parse chunks SEQUENTIALLY (user-chosen for cleaner merge),
+        // then merge + dedupe. Any chunk failure is surfaced with section
+        // context so the UI shows "Parse failed: section N of M: ...".
+        const perChunk = [];
+        for (let i = 0; i < chunks.length; i++) {
+          try {
+            const r = await callClaude({
+              model: "claude-sonnet-4-6",
+              maxTokens: 6000,
+              timeoutMs: 55000,
+              stream: true,
+              prompt: buildItemsPrompt(chunks[i]),
+              label: `items §${i + 1}/${chunks.length}`,
+            });
+            perChunk.push(r);
+          } catch (e) {
+            throw new Error(`section ${i + 1} of ${chunks.length}: ${e.message}`);
+          }
+        }
+        return mergeItemChunks(perChunk);
+      };
       const [jobInfoResult, itemsResult] = await Promise.all([
         callClaude({
           model: "claude-haiku-4-5-20251001",
@@ -1531,13 +1773,7 @@ export default function App() {
           prompt: buildJobInfoPrompt(transcript),
           label: "job info",
         }),
-        callClaude({
-          model: "claude-sonnet-4-6",
-          maxTokens: 6000,
-          timeoutMs: 90000,
-          prompt: buildItemsPrompt(transcript),
-          label: "items",
-        }),
+        itemsWork(),
       ]);
 
       const jobInfo = jobInfoResult.jobInfo || {};
@@ -1772,10 +2008,13 @@ Reasoning hints:
     const scopeBuckets = rooms.filter((r) => r.type === "scope");
     const tmItems = rooms.filter((r) => r.type === "tm");
 
-    // Map each T&M item to its catalog ID
+    // Map each T&M item to its catalog ID. Read from the `tmCatalog` STATE var
+    // (Supabase mirror, fallback to module constant) — not the module constant
+    // directly — so the live cost-code id flows through. NOTE: match.code is
+    // the real cost-code id (e.g. 22PWmcdSP9GM), NOT a bare number like "2000".
     const tmWithCatalog = tmItems.map((tm) => {
       const cat = (tm.category || "").toLowerCase();
-      const match = TM_CATALOG.find((c) =>
+      const match = tmCatalog.find((c) =>
         c.codeName.toLowerCase().includes(cat.replace(/_/g, " ")) ||
         c.name.toLowerCase().includes(cat.replace(/_/g, " "))
       );
@@ -1783,7 +2022,8 @@ Reasoning hints:
         ...tm,
         catalogId: match?.id,
         catalogName: match?.name,
-        costCode: match?.code,
+        costCode: match?.code,        // real cost-code id (passed as costCodeId)
+        costCodeId: match?.code,      // explicit alias — same value, clearer name
         costCodeName: match?.codeName,
         unitCost: match?.unitCost,
         unitPrice: match?.unitPrice,
@@ -1812,8 +2052,8 @@ Reasoning hints:
       tmItems: tmWithCatalog,
       scope: selectedScope,
       exclusions: selectedExclusions,
-      catalog: CATALOG_IDS,
-      tmCatalog: TM_CATALOG,
+      catalog: catalogIds,
+      tmCatalog: tmCatalog,
       ...(inputMode === "takeoff" && {
         takeoffMeta: {
           sourceFile: takeoffFile?.name || null,
@@ -3899,7 +4139,7 @@ const BUILD_CHAT_TOOLS = [
         costGroupId: { type: "string", description: "Parent cost group ID." },
         name: { type: "string", description: "Cost item name (e.g. 'Drywall Walls - Existing - 2-Coats')." },
         organizationCostItemId: { type: "string", description: "Org catalog item ID for the substrate+coats combo." },
-        costCodeId: { type: "string", description: "Cost code ID (the 'code' field from the catalog)." },
+        costCodeId: { type: "string", description: "Cost code ID — the real cost-code JobTread id (the 'code_id' field from the catalog), e.g. 22PWmcdSP9GM. NOT the bare code number like '2000'." },
         costTypeId: { type: "string", description: "Labor or Materials — see system prompt." },
         unitId: { type: "string", description: "Unit ID." },
         quantityFormula: { type: "string", description: "Dimensional formula for this item, e.g. '2 * (12 + 14) * 9' for walls or '12 * 14' for a ceiling. The item carries its own quantity; do not inherit from the parent." },
@@ -4050,11 +4290,12 @@ CUSTOM FIELDS:
   Phone (customerContact)=22PWNYKhWqBE
   Lead Stage (customerContact)=22PWsFuiWzEq
 
-INTERIOR CATALOG (organizationCostItemId per substrate+coats; "code" is the costCodeId for the substrate):
+INTERIOR CATALOG — IDs are stable; live unit prices live in payload.catalog (loaded from the Supabase mirror). "code" IS the real cost-code JobTread id (pass it as costCodeId on every cost item — NOT a bare number like "2100"):
   Walls:     { "1coat":22PWT9nDL9HP, "2coats":22PWiSS293E2, "prime+2":22PWiSgjqkaq, code:22PWmcdKrCnn }
   Ceilings:  { "1coat":22PWickkTi46, "2coats":22PWictZ3V84, "prime+2":22PWicwN2pxL, code:22PWmcdMcqbZ }
   Baseboard: { "1coat":22PWiYQt5Pq8, "2coats":22PWih8XPvPm,                          code:22PWmcdjtJ9C }
-  Doors:     { "1coat":22PXFmQz3HEd, "2coats":22PXFmRbHAgn, "prime+2":22PXFmSG2zeV, code:22PWmcdpBtSV }
+  Doors:     { "1coat":22PWmgVUki5g, "2coats":22PWmgivcQCV, "prime+2":22PXFmB69VLf, code:22PWmcdUnRSP }   (INTERIOR doors — code 2100 "Slab Door Paint")
+When the mirror is loaded, payload.catalog[substrate][coats] is an OBJECT { id, unitCost, unitPrice, unitId, costTypeId, codeId } — read unitCost/unitPrice from there. If it's a bare string (fallback when the mirror didn't load), only the id is available.
 
 TIER MULTIPLIERS (apply to BOTH unitCost AND unitPrice — margin % preserved):
   standard=1.00, production=0.85, highend=1.35, prevailing=1.65
@@ -4082,7 +4323,7 @@ Stage B — Top-level structure (create ONLY the side(s) that will hold work):
 5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step — and skip Stage C entirely since there are no rooms to place.
 6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets — the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
 
-Stage C — Rooms (interior). BEFORE creating any cost items in Stages C or D, call get_catalog_prices ONCE with every organizationCostItemId you will use across the whole build (batch them — do NOT call per item). The returned unitCost/unitPrice are the live catalog values; multiply each by the tier multiplier and write the result onto every createCostItem. The catalog is the single source of truth — do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
+Stage C — Rooms (interior). Prices come DIRECTLY from payload.catalog (loaded from the Supabase mirror — the single source of truth for catalog IDs and unit prices). For each cost item, read unitCost / unitPrice off payload.catalog[substrate][coats], multiply each by the tier multiplier, and write the result onto every createCostItem. Do NOT call get_catalog_prices, do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
 
 For each room in payload.rooms:
 7. Create parent cost group with parentCostGroupId=<Interior.id>.
@@ -4101,18 +4342,18 @@ For each room in payload.rooms:
           ceiling cost item:   quantityFormula = "<L> * <W>"
           baseboard cost item: quantityFormula = "2 * (<L> + <W>)"
           doors cost item:     quantity = <doorCount>  (literal EA, no formula)
-      - unitCost  = (live catalog unitCost for this organizationCostItemId, from get_catalog_prices) × tier multiplier
-      - unitPrice = (live catalog unitPrice for this organizationCostItemId, from get_catalog_prices) × tier multiplier
+      - unitCost  = payload.catalog[substrate][coats].unitCost  × tier multiplier
+      - unitPrice = payload.catalog[substrate][coats].unitPrice × tier multiplier
 
 Stage D — Scope buckets:
 For each item in payload.scopeBuckets:
 9. parent = Exterior if substrate starts with "exterior_", else Interior.
 10. Create cost group with literal quantity + unitId by item.unit.
-11. Create cost item. If the substrate is NOT one of the 4 interior catalog items above, call search_catalog with a keyword for that substrate (e.g. "fascia", "soffit", "wood eaves", "railing", "exterior trim", "metal", "cabinet") to get its organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice. Pick the match whose name / coats / condition best fit the item (use the coats filter to narrow to "1-Coat" / "2-Coats" / "Prime + Paint : 2-Coats"). Multiply unitCost AND unitPrice by the tier multiplier. ONLY if search_catalog returns no usable match may you ask the user for organizationCostItemId + costCodeId. Never leave unitCost/unitPrice null.
+11. Create cost item. For substrates IN the 4-item interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] × tier multiplier (same as Stage C). For substrates NOT in the interior catalog (fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), call search_catalog with a keyword for that substrate (e.g. "fascia", "soffit", "wood eaves", "railing", "exterior trim", "metal", "cabinet") to get its organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice. Pick the match whose name / coats / condition best fit the item (use the coats filter to narrow to "1-Coat" / "2-Coats" / "Prime + Paint : 2-Coats"). Multiply unitCost AND unitPrice by the tier multiplier. ONLY if search_catalog returns no usable match may you ask the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Never leave unitCost/unitPrice null.
 
 Stage E — T&M items:
 For each item in payload.tmItems:
-12. payload.tmItems already include catalogId, costCode, unitCost, unitPrice — use directly.
+12. payload.tmItems already include catalogId, costCode (the real cost-code id), unitCost, unitPrice — use directly. costCode IS the costCodeId; do not use any bare code number.
 13. T&M items belong under their cost-code group from payload.tmCatalog (find/create the group as needed). Don't nest under Interior or Exterior.
 
 Stage F — Summary:
