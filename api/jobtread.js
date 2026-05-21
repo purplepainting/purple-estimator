@@ -342,7 +342,7 @@ const ACTIONS = {
         job: {
           $: { id: jobId },
           costItems: {
-            $: { size: 500 },
+            $: { size: 100 },
             nodes: {
               id: {},
               name: {},
