@@ -4487,16 +4487,6 @@ Stage F — Summary:
 
 **[Open Job in JobTread](https://app.jobtread.com/jobs/<jobId>)**
 
-CURRENT BUILD CONTEXT
-═══════════════════
-${JSON.stringify({
-  customerId: contextRef.current.customerId,
-  jobId: contextRef.current.jobId,
-  costGroupIds: contextRef.current.costGroupIds,
-  completed: contextRef.current.completed,
-  recentErrors: contextRef.current.errors.slice(-3),
-}, null, 2)}
-
 PAYLOAD (what you're building)
 ═══════════════════
 IDENTITY FIELDS — payload.customerName, payload.siteAddress, and payload.jobName at the top level are pre-filled from the transcript and confirmed by the user in Step 2. Use them DIRECTLY in find_customer / create_customer / create_job; do not re-ask the user for them. They will only be "" when the transcript didn't state them AND the user didn't fill them in.
@@ -4552,9 +4542,33 @@ ${JSON.stringify(payload)}`;
   }
 
   // Strip the display-only opening assistant message (Anthropic requires the
-  // first message to be from the user).
+  // first message to be from the user). Also inject the volatile build context
+  // (customerId / jobId / costGroupIds / completed / recentErrors) onto the
+  // LATEST user message so the model sees current state each turn — without
+  // mutating the system prompt, which must stay byte-stable for api/chat.js's
+  // ephemeral cache_control to hit on turns 2+ (catalog is in system).
   function toApiMessages(history) {
-    return history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+    const messages = history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+    if (messages.length === 0) return messages;
+    const ctxLine = `[CURRENT BUILD CONTEXT] ${JSON.stringify({
+      customerId: contextRef.current.customerId,
+      jobId: contextRef.current.jobId,
+      costGroupIds: contextRef.current.costGroupIds,
+      completed: contextRef.current.completed,
+      recentErrors: contextRef.current.errors.slice(-3),
+    })}`;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role !== "user") continue;
+      const m = messages[i];
+      if (typeof m.content === "string") {
+        messages[i] = { ...m, content: m.content + "\n\n" + ctxLine };
+      } else if (Array.isArray(m.content)) {
+        // tool_result-bearing user turn — append a text block alongside the results.
+        messages[i] = { ...m, content: [...m.content, { type: "text", text: ctxLine }] };
+      }
+      break;
+    }
+    return messages;
   }
 
   async function callClaude(history) {
@@ -4974,15 +4988,6 @@ Stage F — Summary:
 
 **[Open document in JobTread](https://app.jobtread.com/documents/<documentId>)**
 
-CURRENT DOCUMENT CONTEXT
-═══════════════════
-${JSON.stringify({
-  documentId: contextRef.current.documentId,
-  preparer: contextRef.current.preparer,
-  recipient: contextRef.current.recipient,
-  recentErrors: contextRef.current.errors.slice(-3),
-}, null, 2)}
-
 BUILT BUDGET (from BuildChat)
 ═══════════════════
 ${JSON.stringify(builtBudget || null, null, 2)}
@@ -5024,8 +5029,30 @@ ${JSON.stringify(payload)}`;
     return result;
   }
 
+  // Inject the volatile document context (documentId / preparer / recipient /
+  // recentErrors) onto the LATEST user message so the model sees current state
+  // each turn — without mutating the system prompt, which must stay byte-stable
+  // for api/chat.js's ephemeral cache_control to hit on turns 2+.
   function toApiMessages(history) {
-    return history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+    const messages = history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+    if (messages.length === 0) return messages;
+    const ctxLine = `[CURRENT DOCUMENT CONTEXT] ${JSON.stringify({
+      documentId: contextRef.current.documentId,
+      preparer: contextRef.current.preparer,
+      recipient: contextRef.current.recipient,
+      recentErrors: contextRef.current.errors.slice(-3),
+    })}`;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role !== "user") continue;
+      const m = messages[i];
+      if (typeof m.content === "string") {
+        messages[i] = { ...m, content: m.content + "\n\n" + ctxLine };
+      } else if (Array.isArray(m.content)) {
+        messages[i] = { ...m, content: [...m.content, { type: "text", text: ctxLine }] };
+      }
+      break;
+    }
+    return messages;
   }
 
   async function callClaude(history) {
