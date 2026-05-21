@@ -1463,6 +1463,11 @@ export default function App() {
   // blip mid-estimate can't break a build.
   const [tmCatalog, setTmCatalog] = useState(TM_CATALOG);
   const [catalogIds, setCatalogIds] = useState(CATALOG_IDS);
+  // Full Supabase catalog (non-T&M rows, shaped for the BuildChat system prompt).
+  // Populated by the same startup fetch as tmCatalog/catalogIds — no second
+  // network call. Stage D step 11 reads matches directly from this list instead
+  // of calling search_catalog, so the agent never has to guess search params.
+  const [fullCatalog, setFullCatalog] = useState([]);
   const [step, setStep] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -1534,8 +1539,33 @@ export default function App() {
       try {
         const { data, error } = await supabase
           .from("catalog_items")
-          .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_cost,unit_price,substrate,condition,coats,kind");
+          .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_name,unit_cost,unit_price,substrate,condition,coats,kind");
         if (error || !data || data.length === 0) return; // keep hardcoded fallback
+
+        // Stage-D-facing full catalog: drop T&M rows (those flow through
+        // payload.tmItems / payload.tmCatalog), shape to the same field names
+        // the build-chat tool contract already uses (organizationCostItemId,
+        // costCodeId, …) so the agent can read fields directly without
+        // re-mapping. Stays in sync with tmCatalog/catalogIds via this same
+        // fetch — no second network call.
+        const fullRows = data
+          .filter((r) => r.kind !== "tm")
+          .map((r) => ({
+            organizationCostItemId: r.id,
+            name: r.name,
+            costCodeId: r.code_id,
+            costCodeNumber: r.code,
+            costCodeName: r.code_name,
+            costTypeId: r.cost_type_id,
+            unitId: r.unit_id,
+            unitName: r.unit_name,
+            unitCost: r.unit_cost != null ? Number(r.unit_cost) : null,
+            unitPrice: r.unit_price != null ? Number(r.unit_price) : null,
+            substrate: r.substrate,
+            condition: r.condition,
+            coats: r.coats,
+          }));
+        setFullCatalog(fullRows);
 
         // T&M catalog: shape kind='tm' rows to match TM_CATALOG consumers.
         // CRITICAL: `code` carries the real cost-code id (code_id), NOT the bare
@@ -2055,6 +2085,7 @@ Reasoning hints:
       scope: selectedScope,
       exclusions: selectedExclusions,
       catalog: catalogIds,
+      catalogFull: fullCatalog,
       tmCatalog: tmCatalog,
       ...(inputMode === "takeoff" && {
         takeoffMeta: {
@@ -4378,7 +4409,7 @@ Stage D — Scope buckets:
 For each item in payload.scopeBuckets:
 9. parent = Exterior if substrate starts with "exterior_", else Interior.
 10. Create cost group with literal quantity + unitId by item.unit.
-11. Create cost item. For substrates IN the 4-item interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] × tier multiplier (same as Stage C). For substrates NOT in the interior catalog (stucco, fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), call search_catalog ONCE. search_catalog takes TWO SEPARATE arguments that must NEVER be mixed: (a) query = the substrate word ALONE — a single word like "stucco", "fascia", "soffit", "eaves", "railing", "trim", "cabinet". NEVER put coat words ("prime", "paint", "2", "coats", "1-coat"), conditions, or location words ("exterior", "interior", "body", "walls") in query — catalog item names are substrate + condition + coats only and the tokenizer will AND every word against the name/code_name/substrate columns, matching nothing if you cram extra terms in. (b) coats = the coat level passed as the SEPARATE coats argument, using the EXACT catalog value: "Paint : 1-Coat", "Paint : 2-Coats", or "Prime + Paint : 2-Coats". Example: to find exterior stucco prime+2, call search_catalog with query="stucco" AND coats="Prime + Paint : 2-Coats" — do NOT call search_catalog with query="exterior stucco prime paint 2 coats". Pick the best match from the single result set to get organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice. Multiply unitCost AND unitPrice by the tier multiplier. Do NOT run additional searches. ONLY if that single call returns nothing may you ask the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Never leave unitCost/unitPrice null.
+11. Create cost item. For substrates IN the 4-item interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] × tier multiplier (same as Stage C). For substrates NOT in the interior catalog (stucco, fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), DO NOT call search_catalog. The full org catalog is already in payload.catalogFull — an array of rows each shaped { organizationCostItemId, name, costCodeId, costCodeNumber, costCodeName, costTypeId, unitId, unitName, unitCost, unitPrice, substrate, condition, coats }. Find the matching row IN THAT ARRAY: pick the row whose name or substrate contains the material word from the scope bucket (e.g. for an exterior stucco bucket → row whose name starts with "Stucco"; "exterior" lives in code_name only and is irrelevant to the lookup), and whose coats field matches the desired coat level (1-coat → coats value with "1-Coat" / 1 coat / no "prime"; 2-coats → "2-Coats" without "prime"; prime+2 → contains both "Prime" and "2"). Then read organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice DIRECTLY from that row — no tool call. Multiply unitCost AND unitPrice by the tier multiplier. ONLY if no row in payload.catalogFull matches the material at all may you ask the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Never leave unitCost/unitPrice null.
 
 Stage E — T&M items:
 For each item in payload.tmItems:
