@@ -3799,7 +3799,7 @@ const BUILD_CHAT_TOOLS = [
   },
   {
     name: "create_cost_item",
-    description: "Create a cost item under a cost group. organizationCostItemId links to the org catalog. quantityFormula '{Parent Quantity}' (literal, with braces) inherits from the parent subgroup.",
+    description: "Create a cost item under a cost group. organizationCostItemId links to the org catalog. The cost item carries its OWN dimensional quantityFormula (e.g. \"2 * (12 + 14) * 9\" for walls); the parent subgroup stays empty of quantity so the item's quantity is what job.costItems exposes via the API.",
     input_schema: {
       type: "object",
       properties: {
@@ -3810,12 +3810,27 @@ const BUILD_CHAT_TOOLS = [
         costCodeId: { type: "string", description: "Cost code ID (the 'code' field from the catalog)." },
         costTypeId: { type: "string", description: "Labor or Materials — see system prompt." },
         unitId: { type: "string", description: "Unit ID." },
-        quantityFormula: { type: "string", description: "Formula. Use '{Parent Quantity}' (literal, with braces) to inherit from the parent." },
+        quantityFormula: { type: "string", description: "Dimensional formula for this item, e.g. '2 * (12 + 14) * 9' for walls or '12 * 14' for a ceiling. The item carries its own quantity; do not inherit from the parent." },
         quantity: { type: "number", description: "Literal numeric quantity if no formula." },
         unitCost: { type: "number", description: "Per-unit cost (catalog default × tier multiplier)." },
         unitPrice: { type: "number", description: "Per-unit price (catalog default × tier multiplier)." },
       },
       required: ["jobId", "costGroupId", "name"],
+    },
+  },
+  {
+    name: "get_catalog_prices",
+    description: "Look up the live unitCost and unitPrice for one or more org catalog items by their organizationCostItemId. Batch all IDs you need into a single call. Returns the catalog values — multiply each by the tier multiplier before writing onto a cost item.",
+    input_schema: {
+      type: "object",
+      properties: {
+        ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of organizationCostItemIds (e.g. ['22PWiSS293E2', '22PWickkTi46']).",
+        },
+      },
+      required: ["ids"],
     },
   },
 ];
@@ -3905,7 +3920,7 @@ CRITICAL JT RULES
 ═══════════════════
 1. Cost item catalog link = organizationCostItemId (NOT sourceCostItemId).
 2. Tier multiplier applies to unitCost AND unitPrice. Margin stays constant.
-3. Cost items under a subgroup use quantityFormula: "{Parent Quantity}" (literal, including braces).
+3. Cost items carry their own dimensional quantityFormula (e.g. "2 * (12 + 14) * 9") — do NOT use "{Parent Quantity}". The subgroup above them stays empty of quantity; the API's job.costItems endpoint reads quantity off the item directly.
 4. Flat creates only: parent → subgroup → item. Never nest lineItems on createCostGroup.
 5. Picklist custom fields can't be empty — only set them when you have a value.
 6. Job Type from tier: standard→"Residential - Standard Home", production→"Property Management / Production", highend→"Residential - Custom House", prevailing→"Prevailing Wage".
@@ -3923,31 +3938,33 @@ Stage B — Top-level structure (create ONLY the side(s) that will hold work):
 5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step — and skip Stage C entirely since there are no rooms to place.
 6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets — the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
 
-Stage C — Rooms (interior):
+Stage C — Rooms (interior). BEFORE creating any cost items in Stages C or D, call get_catalog_prices ONCE with every organizationCostItemId you will use across the whole build (batch them — do NOT call per item). The returned unitCost/unitPrice are the live catalog values; multiply each by the tier multiplier and write the result onto every createCostItem. The catalog is the single source of truth — do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
+
 For each room in payload.rooms:
 7. Create parent cost group with parentCostGroupId=<Interior.id>.
 8. For each enabled substrate, create subgroup + cost item:
-   a. Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
-      Quantity formulas (substitute actual dims as numbers):
-        walls: "2 * (<L> + <W>) * <H>"
-        ceiling: "<L> * <W>"
-        baseboard: "2 * (<L> + <W>)"
-        doors: literal doors.count (use "quantity" not "quantityFormula")
-      Unit IDs: walls/ceiling=SF, baseboard=LF, doors=EA.
-   b. Cost item under that subgroup:
+   a. Subgroup is a plain organizational container — create it with NO quantityFormula and NO quantity. Its only job is grouping the cost item underneath it.
+      Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
+      Unit IDs (for display on the subgroup): walls/ceiling=SF, baseboard=LF, doors=EA.
+   b. Cost item under that subgroup carries the dimensional formula ITSELF — do NOT use "{Parent Quantity}" inheritance. This is what makes the item's quantity readable via the job.costItems API.
       - organizationCostItemId = catalog entry by substrate+coats
       - name = "<Substrate label> - Existing - <Coats label>" (e.g. "Drywall Walls - Existing - 2-Coats")
       - costCodeId = catalog "code" for that substrate
       - costTypeId = Labor
       - unitId = matching unit
-      - quantityFormula = "{Parent Quantity}" (literal)
-      - unitCost, unitPrice = catalog defaults × tier multiplier. If you don't know catalog defaults, ASK the user.
+      - quantityFormula / quantity (substitute the room's actual L, W, H, doorCount as numbers):
+          walls cost item:     quantityFormula = "2 * (<L> + <W>) * <H>"
+          ceiling cost item:   quantityFormula = "<L> * <W>"
+          baseboard cost item: quantityFormula = "2 * (<L> + <W>)"
+          doors cost item:     quantity = <doorCount>  (literal EA, no formula)
+      - unitCost  = (live catalog unitCost for this organizationCostItemId, from get_catalog_prices) × tier multiplier
+      - unitPrice = (live catalog unitPrice for this organizationCostItemId, from get_catalog_prices) × tier multiplier
 
 Stage D — Scope buckets:
 For each item in payload.scopeBuckets:
 9. parent = Exterior if substrate starts with "exterior_", else Interior.
 10. Create cost group with literal quantity + unitId by item.unit.
-11. Create cost item. If substrate NOT in interior catalog above, ASK user for organizationCostItemId + costCodeId — Phase 1 doesn't auto-look up the catalog.
+11. Create cost item. If substrate NOT in interior catalog above, ASK the user for organizationCostItemId + costCodeId. Set unitCost / unitPrice the same way as Stage C — call get_catalog_prices and multiply by the tier multiplier. Do NOT leave unitCost/unitPrice null.
 
 Stage E — T&M items:
 For each item in payload.tmItems:
