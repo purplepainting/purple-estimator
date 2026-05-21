@@ -15,10 +15,14 @@
  *  - Flattens the three catalog custom fields (Substrate / Condition / # of Coats)
  *    into columns for fuzzy-match / recommend / create work.
  *
- * IDENTITY: names are unique in JT, so we key the upsert on `name`. An item that
- * is deleted+recreated in JT (new id, same name) updates the existing row rather
- * than duplicating it. Items whose name no longer exists in JT are deleted
- * (orphan cleanup) so the mirror never serves a dead id to a build.
+ * IDENTITY: the JobTread cost-item `id` is the true primary key, so we key the
+ * upsert on `id`. NAMES ARE NOT UNIQUE — the catalog has Interior/Exterior pairs
+ * that share a name under different cost codes (e.g. "French Door Paint - Existing
+ * - 1-Coat" exists under 2100 Interior Doors AND 2200 Exterior Doors at different
+ * prices). The natural compound identity is name+code, but `id` is what we upsert
+ * on. An item deleted+recreated in JT gets a NEW id; the old id simply isn't
+ * refreshed by the current run and is removed by the orphan sweep below, so the
+ * mirror never serves a dead id to a build.
  *
  * USAGE:
  *   JOBTREAD_GRANT_KEY=... \
@@ -161,18 +165,21 @@ async function main() {
 
   // Single run-stamp shared by every row this sync touches, so orphan cleanup
   // is a simple "anything older than this run" delete (robust for any catalog
-  // size — no giant name-list filter that can exceed URL limits).
+  // size — no giant id-list filter that can exceed URL limits). This is also
+  // how re-keyed items are handled: the new id upserts a fresh row, the old id
+  // isn't refreshed, and the sweep removes it.
   const runStamp = new Date().toISOString();
   for (const r of rows) r.synced_at = runStamp;
 
-  // Upsert on name (stable identity across JT id changes).
+  // Upsert on id — the JobTread cost-item id is the true PK. Names are NOT
+  // unique (Interior/Exterior pairs share names), so name can never be the key.
   const { error: upErr } = await supabase
     .from('catalog_items')
-    .upsert(rows, { onConflict: 'name' });
+    .upsert(rows, { onConflict: 'id' });
   if (upErr) throw new Error(`Supabase upsert failed: ${upErr.message}`);
 
-  // Orphan cleanup: any row not refreshed by this run is no longer in JT.
-  // Removing it keeps the mirror from ever serving a dead id to a build.
+  // Orphan cleanup: any row not refreshed by this run is no longer in JT (or was
+  // re-keyed). Removing it keeps the mirror from ever serving a dead id to a build.
   const { error: delErr, count } = await supabase
     .from('catalog_items')
     .delete({ count: 'exact' })
