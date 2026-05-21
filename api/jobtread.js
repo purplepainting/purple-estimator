@@ -335,18 +335,25 @@ const ACTIONS = {
 
   get_job_cost_items: {
     required: ['jobId'],
-    // List the job's leaf cost items so the chat can mirror them as document
-    // line items via jobCostItemId (the "existingCostItem" lineItem variant).
+    // Return everything DocumentChat needs to build proven-shape document line
+    // items in a single call: the job's location (name + address) plus each
+    // leaf cost item with full pricing/coding fields. Each costItem.id is the
+    // jobCostItemId passed to update_document's costItem lineItems.
     async execute({ jobId }, grantKey) {
       const q = {
         job: {
           $: { id: jobId },
+          location: { name: {}, address: {} },
           costItems: {
             $: { size: 100 },
             nodes: {
               id: {},
               name: {},
               quantity: {},
+              costCode: { id: {} },
+              costType: { id: {} },
+              unit: { id: {} },
+              unitCost: {},
               unitPrice: {},
               costGroup: { id: {}, name: {} },
             },
@@ -359,25 +366,33 @@ const ACTIONS = {
 
   create_document: {
     required: ['jobId', 'name', 'type', 'fromName', 'toName', 'taxRate'],
-    // Create a JobTread document (customer-facing proposal). Per the verified
-    // JT schema, required: jobId, name (≤128), type (enum), fromName, toName,
-    // taxRate (0..1). Optional used here: description (≤32768 = SCOPE),
-    // footer (≤65536 = EXCLUSIONS), dueDays (int≥0), fromEmailAddress,
-    // fromPhoneNumber, toEmailAddress. documentType enum: bidRequest |
-    // customerInvoice | customerOrder | vendorBill | vendorOrder.
+    // Create a JobTread document. Required by JT: jobId, name, type, fromName,
+    // toName, taxRate. `name` MUST exactly match a JT TEMPLATE name (e.g.
+    // "Proposal", "Selections", "Change Order", "Interior Scope of work
+    // proposal") — JT rejects custom names. Put the descriptive title in
+    // `subject`. createDocument does NOT inherit the job's location — pass
+    // jobLocationName / jobLocationAddress explicitly. dueDays XOR dueDate
+    // — never set both.
     async execute(payload, grantKey) {
       const {
         jobId, name, type, fromName, toName, taxRate,
-        description, footer, dueDays,
+        description, footer, dueDays, dueDate,
         fromEmailAddress, fromPhoneNumber, toEmailAddress,
+        jobLocationName, jobLocationAddress, subject, issueDate,
       } = payload;
       const args = { jobId, name, type, fromName, toName, taxRate };
       if (description) args.description = description;
       if (footer) args.footer = footer;
-      if (dueDays != null) args.dueDays = dueDays;
+      // dueDays XOR dueDate — dueDate wins if both are somehow set.
+      if (dueDate) args.dueDate = dueDate;
+      else if (dueDays != null) args.dueDays = dueDays;
       if (fromEmailAddress) args.fromEmailAddress = fromEmailAddress;
       if (fromPhoneNumber) args.fromPhoneNumber = fromPhoneNumber;
       if (toEmailAddress) args.toEmailAddress = toEmailAddress;
+      if (jobLocationName) args.jobLocationName = jobLocationName;
+      if (jobLocationAddress) args.jobLocationAddress = jobLocationAddress;
+      if (subject) args.subject = subject;
+      if (issueDate) args.issueDate = issueDate;
 
       const q = { createDocument: { $: args, createdDocument: { id: {}, name: {} } } };
       return paveCall(q, grantKey);

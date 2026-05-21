@@ -4235,7 +4235,7 @@ const DOCUMENT_CHAT_TOOLS = [
   },
   {
     name: "get_job_cost_items",
-    description: "List the JOB's cost items so you can mirror them as document line items. Each node has { id, name, quantity, unitPrice, costGroup }. The id is the jobCostItemId you must use for the existingCostItem lineItem variant.",
+    description: "List the JOB's cost items AND the job's location in one call. Returns { job: { location: { name, address }, costItems: { nodes: [{ id, name, quantity, costCode { id }, costType { id }, unit { id }, unitCost, unitPrice, costGroup { id, name } }, ...] } } }. Each costItems.nodes[].id is the jobCostItemId you pass to update_document's costItem children. job.location.name and job.location.address are what you pass to create_document as jobLocationName / jobLocationAddress (createDocument does NOT inherit the job's location).",
     input_schema: {
       type: "object",
       properties: {
@@ -4246,19 +4246,24 @@ const DOCUMENT_CHAT_TOOLS = [
   },
   {
     name: "create_document",
-    description: "Create a JobTread document. Barebones — line items are added afterwards via update_document. type is 'customerOrder' for customer-facing proposals. taxRate is a decimal (0..1); 0 means no sales tax.",
+    description: "Create a JobTread document. Barebones — line items are added afterwards via update_document. `name` MUST be one of JT's TEMPLATE names verbatim ('Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'); the descriptive title goes in `subject`. createDocument does NOT inherit the job's location — always pass jobLocationName + jobLocationAddress from get_job_cost_items' job.location. type is 'customerOrder' for proposals. dueDays XOR dueDate — never set both.",
     input_schema: {
       type: "object",
       properties: {
         jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
-        name: { type: "string", description: "Document name (≤128 chars). e.g. 'Smith Family — Interior Repaint Proposal'." },
+        name: { type: "string", description: "Document TEMPLATE name (must match a JT template verbatim): 'Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'. Default: 'Proposal'. Do NOT put the customer/address here — JT rejects non-template names." },
+        subject: { type: "string", description: "Descriptive document title shown to the customer (e.g. 'Smith Family — 123 Main St — Interior Repaint Proposal'). This is where the human-readable label goes, not `name`." },
         type: { type: "string", description: "Document type enum: 'bidRequest' | 'customerInvoice' | 'customerOrder' | 'vendorBill' | 'vendorOrder'. Use 'customerOrder' for proposals." },
         fromName: { type: "string", description: "Preparer's display name (the result of find_user)." },
         toName: { type: "string", description: "Recipient's display name — typically the customer's primary contact." },
         taxRate: { type: "number", description: "Sales tax rate as a decimal (0..1). Use 0 for paint proposals." },
         description: { type: "string", description: "Scope-of-work text (≤32768 chars). Goes into the document body." },
         footer: { type: "string", description: "Exclusions text (≤65536 chars). Goes at the bottom of the document." },
-        dueDays: { type: "number", description: "Days until the document is due (integer ≥ 0). Use 30 by default." },
+        dueDays: { type: "number", description: "Days until the document is due (integer ≥ 0). Use 30 by default. XOR with dueDate — pick one." },
+        dueDate: { type: "string", description: "Absolute due date in ISO format YYYY-MM-DD. XOR with dueDays — pick one." },
+        issueDate: { type: "string", description: "Date the document is issued, ISO YYYY-MM-DD. Default to today." },
+        jobLocationName: { type: "string", description: "Document location name — pass job.location.name from get_job_cost_items." },
+        jobLocationAddress: { type: "string", description: "Document location address — pass job.location.address from get_job_cost_items." },
         fromEmailAddress: { type: "string", description: "Preparer's email (from find_user)." },
         fromPhoneNumber: { type: "string", description: "Preparer's phone (from find_user, if present)." },
         toEmailAddress: { type: "string", description: "Recipient's email — from the customer's primaryContact." },
@@ -4268,16 +4273,21 @@ const DOCUMENT_CHAT_TOOLS = [
   },
   {
     name: "update_document",
-    description: "Update an existing JobTread document. Any subset of fields may be passed. lineItems mirror the budget via the existingCostItem variant — { jobCostItemId, name?, quantity?, unitPrice? } — referencing JOB cost items (NOT sourceCostItemId, NOT organizationCostItemId). Use get_job_cost_items first to fetch the jobCostItemId values.",
+    description: "Update a JobTread document. lineItems use the PROVEN costGroup-wrapper structure (verified against a live $8,219 document): one or more top-level costGroup entries, each carrying costItem children with the full field set { _type:'costItem', jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice }. Discriminator is 'costGroup' / 'costItem' (NOT 'newCostGroup' / 'newCostItem'). Pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node's costCode.id / costType.id / unit.id / unitCost / unitPrice — leaving any of them out makes JT show $0 or wrong codes.",
     input_schema: {
       type: "object",
       properties: {
         id: { type: "string", description: "The document's JobTread ID (from create_document's createdDocument.id)." },
-        name: { type: "string", description: "Updated document name." },
+        name: { type: "string", description: "Updated document TEMPLATE name (same constraint as create_document — must match a JT template verbatim)." },
+        subject: { type: "string", description: "Updated descriptive subject." },
         fromName: { type: "string", description: "Updated preparer name." },
         toName: { type: "string", description: "Updated recipient name." },
         taxRate: { type: "number", description: "Updated tax rate (0..1)." },
-        dueDays: { type: "number", description: "Updated days until due." },
+        dueDays: { type: "number", description: "Updated days until due. XOR with dueDate." },
+        dueDate: { type: "string", description: "Updated absolute due date (YYYY-MM-DD). XOR with dueDays." },
+        issueDate: { type: "string", description: "Updated issue date (YYYY-MM-DD)." },
+        jobLocationName: { type: "string", description: "Updated document location name." },
+        jobLocationAddress: { type: "string", description: "Updated document location address." },
         description: { type: "string", description: "Updated scope-of-work text." },
         footer: { type: "string", description: "Updated exclusions text." },
         fromEmailAddress: { type: "string", description: "Updated preparer email." },
@@ -4285,16 +4295,34 @@ const DOCUMENT_CHAT_TOOLS = [
         toEmailAddress: { type: "string", description: "Updated recipient email." },
         lineItems: {
           type: "array",
-          description: "Document line items — existingCostItem variant. Each item links a JT job cost item via jobCostItemId; optional overrides for name/quantity/unitPrice.",
+          description: "PROVEN costGroup-wrapper structure. Each entry is a costGroup containing costItem children — see this tool's top-level description for the exact field set.",
           items: {
             type: "object",
+            description: "A costGroup wrapper. _type must be 'costGroup'.",
             properties: {
-              jobCostItemId: { type: "string", description: "The job cost-item's id from get_job_cost_items. NOT sourceCostItemId, NOT organizationCostItemId." },
-              name: { type: "string", description: "Optional override for the line-item display name." },
-              quantity: { type: "number", description: "Optional override for quantity." },
-              unitPrice: { type: "number", description: "Optional override for unit price." },
+              _type: { type: "string", description: "Discriminator. Must be 'costGroup'." },
+              name: { type: "string", description: "Group label shown on the document (e.g. 'Full Interior Painting')." },
+              lineItems: {
+                type: "array",
+                description: "costItem children inside this group. _type on each must be 'costItem'.",
+                items: {
+                  type: "object",
+                  properties: {
+                    _type: { type: "string", description: "Discriminator. Must be 'costItem'." },
+                    jobCostItemId: { type: "string", description: "The matching get_job_cost_items node's id. NOT sourceCostItemId, NOT organizationCostItemId." },
+                    name: { type: "string", description: "Line display name (typically the cost item's name)." },
+                    quantity: { type: "number", description: "Resolved numeric quantity from get_job_cost_items (e.g. 396, 120). NOT a formula string." },
+                    costCodeId: { type: "string", description: "From the get_job_cost_items node's costCode.id." },
+                    costTypeId: { type: "string", description: "From the get_job_cost_items node's costType.id." },
+                    unitId: { type: "string", description: "From the get_job_cost_items node's unit.id." },
+                    unitCost: { type: "number", description: "From the get_job_cost_items node's unitCost." },
+                    unitPrice: { type: "number", description: "From the get_job_cost_items node's unitPrice." },
+                  },
+                  required: ["_type", "jobCostItemId"],
+                },
+              },
             },
-            required: ["jobCostItemId"],
+            required: ["_type", "name", "lineItems"],
           },
         },
       },
@@ -4352,12 +4380,14 @@ TYPE: use "customerOrder" for customer-facing proposals.
 
 CRITICAL DOCUMENT RULES
 ═══════════════════
-1. Line items in update_document use the existingCostItem variant — each line is { jobCostItemId, name?, quantity?, unitPrice? }. jobCostItemId comes from get_job_cost_items — it's the JOB cost item's id, NOT sourceCostItemId, NOT organizationCostItemId.
-2. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage). It is a decimal — 0 means no tax, 0.0825 = 8.25%.
-3. dueDays defaults to 30.
-4. Document type is "customerOrder" for proposals (the enum also has bidRequest, customerInvoice, vendorBill, vendorOrder — don't use those here).
-5. description = scope of work (compose from payload.scope). footer = exclusions text (payload.exclusions).
-6. create_document REQUIRES: jobId, name, type, fromName, toName, taxRate. All required — don't omit any.
+1. update_document.lineItems uses the PROVEN costGroup-wrapper structure (verified against a live $8,219 document). One or more top-level entries with { _type:"costGroup", name:<group label>, lineItems:[<costItem children>] }. Each costItem child MUST include { _type:"costItem", jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice } — pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node. Discriminator is "costGroup"/"costItem" (NOT "newCostGroup"/"newCostItem"). jobCostItemId is the node's id — NOT sourceCostItemId, NOT organizationCostItemId.
+2. create_document.name MUST exactly match a JT TEMPLATE name: "Proposal" | "Selections" | "Change Order" | "Interior Scope of work proposal". Default "Proposal". The descriptive title (e.g. "Smith Family — 123 Main St — Interior Repaint Proposal") goes in `subject`, NEVER in `name` — JT rejects non-template names.
+3. createDocument does NOT inherit the job's location. ALWAYS pass jobLocationName + jobLocationAddress (read from get_job_cost_items' job.location.name / job.location.address).
+4. dueDays XOR dueDate — never set both. dueDays defaults to 30; use dueDate (YYYY-MM-DD) when an absolute date is needed.
+5. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage). It is a decimal — 0 means no tax, 0.0825 = 8.25%.
+6. Document type is "customerOrder" for proposals (the enum also has bidRequest, customerInvoice, vendorBill, vendorOrder — don't use those here).
+7. description = scope of work (compose from payload.scope). footer = exclusions text (payload.exclusions).
+8. create_document REQUIRES: jobId, name, type, fromName, toName, taxRate. All required — don't omit any.
 
 BUILD SEQUENCE
 ═══════════════════
@@ -4367,13 +4397,46 @@ Stage A — Identify the preparer:
 Stage B — Confirm the recipient:
 2. Default recipient = the customer's primary contact (from payload.customer or payload.recipient if present, otherwise ask the user for name + email). Confirm with the user, then use toName / toEmailAddress.
 
-Stage C — Create the barebones document:
-3. Call create_document with ALL required fields: jobId (from JOB above), name (e.g. "<customer> — <job> Proposal"), type "customerOrder", fromName, toName, taxRate 0, dueDays 30, description (the composed scope text), footer (the composed exclusions text), plus fromEmailAddress, fromPhoneNumber, toEmailAddress when known. Capture createdDocument.id from the result.
+Stage C — Fetch job context, then create the barebones document:
+3. Call get_job_cost_items with jobId FIRST. This returns BOTH the job's location and all cost-item nodes you'll need in Stage D. Remember job.location.name and job.location.address for the next step.
+4. Call create_document with ALL required fields PLUS:
+   - name: exactly "Proposal" (or another template name verbatim — see Rule 2). Do NOT put the customer/address here.
+   - subject: the descriptive title (e.g. "Smith Family — 123 Main St — Interior Repaint Proposal").
+   - type: "customerOrder"
+   - fromName, fromEmailAddress, fromPhoneNumber (from find_user)
+   - toName, toEmailAddress (recipient)
+   - taxRate: 0
+   - dueDays: 30 (or dueDate if absolute — never both)
+   - issueDate: today (YYYY-MM-DD) when known
+   - jobLocationName: job.location.name from step 3
+   - jobLocationAddress: job.location.address from step 3
+   - description: composed scope-of-work text
+   - footer: composed exclusions text
+   Capture createdDocument.id from the result.
 
-Stage D — Mirror the budget as line items:
-4. Call get_job_cost_items with jobId to fetch the leaf cost items the budget produced. Each node has { id, name, quantity, unitPrice, costGroup }. Then call update_document with lineItems mirroring those, one per cost item:
-     { jobCostItemId: <id>, name: <leaf name>, quantity: <qty>, unitPrice: <price> }
-   The name/quantity/unitPrice are optional overrides — omit them to inherit from the linked cost item, include them to override what the customer sees on this document.
+Stage D — Mirror the budget as line items (PROVEN structure):
+5. From the get_job_cost_items result you already have, build ONE costGroup wrapper containing every cost item as a costItem child, then call update_document with this lineItems array:
+     lineItems: [
+       {
+         _type: "costGroup",
+         name: "Full Interior Painting",
+         lineItems: [
+           {
+             _type: "costItem",
+             jobCostItemId: <node.id>,
+             name: <node.name>,
+             quantity: <node.quantity>,        // REAL number from the node (e.g. 396, 120) — not a formula
+             costCodeId: <node.costCode.id>,
+             costTypeId: <node.costType.id>,
+             unitId: <node.unit.id>,
+             unitCost: <node.unitCost>,
+             unitPrice: <node.unitPrice>,
+           },
+           ... one per cost item ...
+         ],
+       },
+     ]
+   Every costItem child MUST carry the full field set above — omitting costCodeId/costTypeId/unitId/unitCost/unitPrice is what causes JT to show $0 or wrong codes on the document. The discriminators are exactly "costGroup" / "costItem", not "newCostGroup" / "newCostItem".
 
 Stage E — Conversational edits:
 5. Honor user-driven edits via update_document. Examples:
