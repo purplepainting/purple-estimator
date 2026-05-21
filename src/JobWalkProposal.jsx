@@ -635,6 +635,7 @@ COATS ARE PER SUBSTRATE. "one coat ceiling, two coats walls" → ceiling.coats="
 
 "scope" (substrate bucket, not a physical room — Doors throughout, Cabinets, Exterior Stucco, Fence, Window Trim, Metal Beams, etc.) — fields:
 { type: "scope", name, substrate: "doors"|"baseboard"|"trim"|"cabinets"|"exterior_stucco"|"exterior_trim"|"fence_deck"|"metal", quantity, unit: "EA"|"LF"|"SF", coats, notes }
+SUBSTRATE RULES: Interior surfaces NEVER map to exterior_* buckets — interior walls→walls, interior ceilings→ceilings. Beams, columns, posts, trellis are WOOD → exterior_trim (NOT metal). Use metal ONLY for railings, steel, or explicitly metal items.
 
 "tm" (Time & Materials hourly work — ONLY for true touch-up / spot work that has no measurable quantity) — fields:
 { type: "tm", name, hours, category: "interior_walls"|"doors"|"windows"|"trim"|"exterior_walls"|"exterior_misc"|"millwork"|"repairs"|"cleaning"|"materials", notes }
@@ -1160,7 +1161,8 @@ const DESCRIPTION_KEYWORDS = [
   { pattern: /\bstucco|siding|exterior.*wall|exterior.*body\b/i, substrate: "exterior_stucco" },
   { pattern: /\bfascia|eaves|soffit|exterior.*wood|exterior.*trim\b/i, substrate: "exterior_trim" },
   { pattern: /\bfence|deck\b/i,            substrate: "fence_deck" },
-  { pattern: /\bbeam|column|railing|metal\b/i, substrate: "metal" },
+  { pattern: /\bbeam|column|post|glulam|trellis\b/i, substrate: "exterior_trim" },
+  { pattern: /\brailing|metal|steel|iron|aluminum\b/i, substrate: "metal" },
   { pattern: /\bceiling|soffit\b/i,        substrate: "ceilings" },
   { pattern: /\bwall|gypsum|drywall|plaster\b/i, substrate: "walls" },
 ];
