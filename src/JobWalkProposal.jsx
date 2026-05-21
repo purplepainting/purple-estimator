@@ -1467,7 +1467,11 @@ export default function App() {
   // Populated by the same startup fetch as tmCatalog/catalogIds — no second
   // network call. Stage D step 11 reads matches directly from this list instead
   // of calling search_catalog, so the agent never has to guess search params.
+  // The ref mirrors the state so payload reads are insulated from stale
+  // closures / pre-fetch renders — buildPayload reads .current, which always
+  // reflects the latest write regardless of which render captured it.
   const [fullCatalog, setFullCatalog] = useState([]);
+  const fullCatalogRef = useRef([]);
   const [step, setStep] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -1565,6 +1569,7 @@ export default function App() {
             condition: r.condition,
             coats: r.coats,
           }));
+        fullCatalogRef.current = fullRows;
         setFullCatalog(fullRows);
 
         // T&M catalog: shape kind='tm' rows to match TM_CATALOG consumers.
@@ -2028,6 +2033,13 @@ Reasoning hints:
   // ============================================================================
 
   function buildPayload() {
+    // Prefer the ref over the state — both are written in the same fetch
+    // effect, but the ref's .current sidesteps any stale-closure / pre-state-
+    // propagation render that captured a buildPayload with the initial [].
+    const catalogFullForPayload = fullCatalogRef.current.length ? fullCatalogRef.current : fullCatalog;
+    if (!catalogFullForPayload.length) {
+      console.warn("buildPayload: catalogFull is empty — Stage D will fall back to search_catalog / asking the user.");
+    }
     const selectedScope = {};
     Object.entries(scopeSelections).forEach(([gk, items]) => {
       const picked = Object.entries(items).filter(([, v]) => v).map(([k]) => k);
@@ -2085,7 +2097,7 @@ Reasoning hints:
       scope: selectedScope,
       exclusions: selectedExclusions,
       catalog: catalogIds,
-      catalogFull: fullCatalog,
+      catalogFull: catalogFullForPayload,
       tmCatalog: tmCatalog,
       ...(inputMode === "takeoff" && {
         takeoffMeta: {
