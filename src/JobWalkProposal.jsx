@@ -21,22 +21,22 @@ const CATALOG_IDS = {
   doors:     { "1coat": "22PWmgVUki5g", "2coats": "22PWmgivcQCV", "prime+2": "22PXFmB69VLf", code: "22PWmcdUnRSP" },
 };
 
-// T&M Catalog â€” canonical hourly line items, mapped to cost groups
+// T&M Catalog — canonical hourly line items, mapped to cost groups
 const TM_CATALOG = [
-  { id: "22PWTAdrFgsR", name: "Time & Materials â€“ Interior Walls & Ceilings", code: "1000", codeName: "Interior Walls & Ceilings",       unitCost: 43.33, unitPrice: 65, fitsCostGroups: ["drywall_walls_ceilings"] },
-  { id: "22PWmfVWsyZ9", name: "Time & Materials â€“ Doors",                  code: "2000", codeName: "Doors & Windows",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["doors_frames"] },
-  { id: "22PWmfVZLfua", name: "Time & Materials â€“ Windows",                code: "2000", codeName: "Doors & Windows",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["doors_frames"] },
-  { id: "22PWmfVaqmfL", name: "Time & Materials â€“ Trim & Beams",           code: "4000", codeName: "Trim & Beams",                    unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["baseboard_trim"] },
-  { id: "22PWmfVcQeW9", name: "Time & Materials â€“ Exterior Walls & Ceilings", code: "5000", codeName: "Exterior Walls & Ceilings",    unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["exterior_stucco_siding"] },
-  { id: "22PWmfVec8ks", name: "Time & Materials â€“ Exterior Miscellaneous", code: "6000", codeName: "Exterior Miscellaneous",          unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["exterior_wood_trim"] },
-  { id: "22PWmfVgD8nW", name: "Time & Materials â€“ Millwork & Specialty",   code: "7000", codeName: "Millwork & Specialty Coatings",   unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["cabinets"] },
-  { id: "22PWmfVhkPTk", name: "Time & Materials â€“ Repairs & Cleaning",     code: "8000", codeName: "Cleaning & Repairs",              unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["universal"] },
-  { id: "22PWmfVpaFLF", name: "Time & Materials â€“ Cleaning Services",      code: "8200", codeName: "Cleaning",                        unitCost: 36.67, unitPrice: 55, fitsCostGroups: ["universal"] },
-  { id: "22PWmfVmyWGZ", name: "Time & Materials â€“ Materials & Supplies",   code: "9000", codeName: "Non-Labor Costs",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["universal"] },
+  { id: "22PWTAdrFgsR", name: "Time & Materials – Interior Walls & Ceilings", code: "1000", codeName: "Interior Walls & Ceilings",       unitCost: 43.33, unitPrice: 65, fitsCostGroups: ["drywall_walls_ceilings"] },
+  { id: "22PWmfVWsyZ9", name: "Time & Materials – Doors",                  code: "2000", codeName: "Doors & Windows",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["doors_frames"] },
+  { id: "22PWmfVZLfua", name: "Time & Materials – Windows",                code: "2000", codeName: "Doors & Windows",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["doors_frames"] },
+  { id: "22PWmfVaqmfL", name: "Time & Materials – Trim & Beams",           code: "4000", codeName: "Trim & Beams",                    unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["baseboard_trim"] },
+  { id: "22PWmfVcQeW9", name: "Time & Materials – Exterior Walls & Ceilings", code: "5000", codeName: "Exterior Walls & Ceilings",    unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["exterior_stucco_siding"] },
+  { id: "22PWmfVec8ks", name: "Time & Materials – Exterior Miscellaneous", code: "6000", codeName: "Exterior Miscellaneous",          unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["exterior_wood_trim"] },
+  { id: "22PWmfVgD8nW", name: "Time & Materials – Millwork & Specialty",   code: "7000", codeName: "Millwork & Specialty Coatings",   unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["cabinets"] },
+  { id: "22PWmfVhkPTk", name: "Time & Materials – Repairs & Cleaning",     code: "8000", codeName: "Cleaning & Repairs",              unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["universal"] },
+  { id: "22PWmfVpaFLF", name: "Time & Materials – Cleaning Services",      code: "8200", codeName: "Cleaning",                        unitCost: 36.67, unitPrice: 55, fitsCostGroups: ["universal"] },
+  { id: "22PWmfVmyWGZ", name: "Time & Materials – Materials & Supplies",   code: "9000", codeName: "Non-Labor Costs",                 unitCost: 43.34, unitPrice: 65, fitsCostGroups: ["universal"] },
 ];
 
 // ============================================================================
-// DEFAULT SCOPE LIBRARY (v3 â€” refined, cost-group-linked, tier-aware)
+// DEFAULT SCOPE LIBRARY (v3 — refined, cost-group-linked, tier-aware)
 // ============================================================================
 
 const DEFAULT_LIBRARY = {
@@ -69,7 +69,7 @@ const DEFAULT_LIBRARY = {
   },
   cost_groups: {
     drywall_walls_ceilings: {
-      label: "Drywall â€“ Walls & Ceilings",
+      label: "Drywall – Walls & Ceilings",
       triggers: ["walls", "ceiling", "drywall"],
       standard: [
         "Patch nail holes, dings, and minor cracks",
@@ -144,7 +144,7 @@ const DEFAULT_LIBRARY = {
       ],
     },
     exterior_stucco_siding: {
-      label: "Exterior â€“ Stucco & Siding",
+      label: "Exterior – Stucco & Siding",
       triggers: ["stucco", "siding", "exterior wall", "exterior body"],
       standard: [
         "Pressure wash all surfaces to remove dirt, chalk, and loose material",
@@ -162,7 +162,7 @@ const DEFAULT_LIBRARY = {
       ],
     },
     exterior_wood_trim: {
-      label: "Exterior â€“ Wood Trim, Fascia, Eaves",
+      label: "Exterior – Wood Trim, Fascia, Eaves",
       triggers: ["fascia", "eaves", "exterior trim", "exterior wood", "soffit", "rafter"],
       standard: [
         "Scrape loose paint and sand transitions smooth",
@@ -180,7 +180,7 @@ const DEFAULT_LIBRARY = {
       ],
     },
     fence_deck_stain: {
-      label: "Fence & Deck â€“ Stain & Seal",
+      label: "Fence & Deck – Stain & Seal",
       triggers: ["fence", "deck", "stain", "seal", "cabot", "sikkens"],
       standard: [
         "Pressure wash to remove dirt, mildew, and loose material",
@@ -234,11 +234,11 @@ async function saveToStorage(key, value) {
 // ============================================================================
 
 function normalizeSubstrate(value, defaultCoats = "2coats", extra = {}) {
-  // Already an object â€” pass through (filling missing fields)
+  // Already an object — pass through (filling missing fields)
   if (value && typeof value === "object") {
     return { enabled: value.enabled !== false, coats: value.coats || defaultCoats, ...extra, ...value };
   }
-  // Legacy boolean (true/false/undefined) â€” convert
+  // Legacy boolean (true/false/undefined) — convert
   return { enabled: value !== false, coats: defaultCoats, ...extra };
 }
 
@@ -300,7 +300,7 @@ function applyPatchToItem(item, patch) {
       continue;
     }
     if (typeof value === "string" && /[\+\-\*\/\(\)]/.test(value)) {
-      // Looks like a formula â€” try to evaluate it
+      // Looks like a formula — try to evaluate it
       try {
         const evaluated = math.evaluate(value);
         if (typeof evaluated === "number" && isFinite(evaluated)) {
@@ -333,7 +333,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
-        // stream:true MUST live INSIDE the body â€” main.jsx's fetch shim only
+        // stream:true MUST live INSIDE the body — main.jsx's fetch shim only
         // forwards `body` (init/headers are dropped to avoid the duplicate
         // Content-Type crash). The /api/chat proxy reads body.stream and
         // pipes the upstream SSE back.
@@ -348,7 +348,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
     }
 
     // Extract `rawText` and `stopReason` from either path. Post-text handling
-    // (fence strip â†’ extractJsonObject â†’ JSON.parse with salvage fallback) is
+    // (fence strip → extractJsonObject → JSON.parse with salvage fallback) is
     // shared so the two paths can't diverge.
     let rawText;
     let stopReason = null;
@@ -402,7 +402,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
     try {
       return JSON.parse(candidate);
     } catch (jsonErr) {
-      // If truncated, attempt graceful recovery â€” keep as many complete array items as possible.
+      // If truncated, attempt graceful recovery — keep as many complete array items as possible.
       if (wasTruncated) {
         const salvaged = salvageTruncatedJSON(candidate);
         if (salvaged) {
@@ -410,9 +410,9 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
           salvaged._truncated = true;
           return salvaged;
         }
-        throw new Error(`${label}: response was truncated and could not be recovered. The job might be too complex â€” try splitting it into smaller sections, or simplifying the notes.`);
+        throw new Error(`${label}: response was truncated and could not be recovered. The job might be too complex — try splitting it into smaller sections, or simplifying the notes.`);
       }
-      throw new Error(`${label}: invalid JSON â€” ${jsonErr.message}. First 200 chars: ${candidate.slice(0, 200)}`);
+      throw new Error(`${label}: invalid JSON — ${jsonErr.message}. First 200 chars: ${candidate.slice(0, 200)}`);
     }
   } catch (e) {
     if (e.name === "AbortError") {
@@ -425,7 +425,7 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
 }
 
 // Split a long transcript into ~maxChars chunks on timestamp-line boundaries
-// (e.g. "19:29", "34:09" â€” typical of Otter / voice-to-text exports). Each
+// (e.g. "19:29", "34:09" — typical of Otter / voice-to-text exports). Each
 // subsequent chunk gets an overlap: the previous chunk's last block prepended,
 // so a late correction or exclusion doesn't get orphaned. If no timestamps
 // exist, falls back to blank-line paragraph packing. Short input returns
@@ -593,10 +593,10 @@ jobInfo:
 }
 
 Tier signals:
-- "production" / "PM" / "property management" / "rental" â†’ "production"
-- "custom home" / "designer" / "luxury" / "Emerald Urethane" â†’ "highend"
-- "DIR" / "prevailing wage" / "public works" / "school district" â†’ "prevailing"
-- Otherwise â†’ "standard" confidence "unknown"
+- "production" / "PM" / "property management" / "rental" → "production"
+- "custom home" / "designer" / "luxury" / "Emerald Urethane" → "highend"
+- "DIR" / "prevailing wage" / "public works" / "school district" → "prevailing"
+- Otherwise → "standard" confidence "unknown"
 
 flags (infer from transcript):
 {
@@ -606,15 +606,15 @@ flags (infer from transcript):
   activeBusiness: { value: bool, confidence: "high"|"medium"|"low"|"unknown" }
 }
 
-EXTRACTION PRIORITIES â€” customerName and address:
-Job-walk transcripts almost always state the customer name and the site address out loud (e.g. "I'm at Connor Sanders' house, he lives at 626 Ardmore Drive"). When they do, quote them VERBATIM from the transcript and set confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent missing details. If the transcript truly doesn't state the customer or address, return value:"" with confidence:"unknown" â€” the user fills it in by hand.
+EXTRACTION PRIORITIES — customerName and address:
+Job-walk transcripts almost always state the customer name and the site address out loud (e.g. "I'm at Connor Sanders' house, he lives at 626 Ardmore Drive"). When they do, quote them VERBATIM from the transcript and set confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent missing details. If the transcript truly doesn't state the customer or address, return value:"" with confidence:"unknown" — the user fills it in by hand.
 
 If a field isn't in the transcript, set value to "" (or false for flags) and confidence to "unknown".
 
 Transcript:
 ${transcript}
 
-CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY â€” your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY — your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
 }
 
 function buildItemsPrompt(transcript) {
@@ -622,7 +622,7 @@ function buildItemsPrompt(transcript) {
 
 ITEM TYPES:
 
-"room" (physical room being painted) â€” fields:
+"room" (physical room being painted) — fields:
 {
   type: "room", name, length, width, height (default 9),
   walls:     { enabled: bool, coats: "1coat"|"2coats"|"prime+2" },
@@ -631,67 +631,67 @@ ITEM TYPES:
   doors:     { enabled: bool, coats: "1coat"|"2coats"|"prime+2", count: number },
   notes
 }
-COATS ARE PER SUBSTRATE. "one coat ceiling, two coats walls" â†’ ceiling.coats="1coat", walls.coats="2coats". Default unstated substrates to enabled=true and 2 coats. Always include all four substrate objects.
+COATS ARE PER SUBSTRATE. "one coat ceiling, two coats walls" → ceiling.coats="1coat", walls.coats="2coats". Default unstated substrates to enabled=true and 2 coats. Always include all four substrate objects.
 
-"scope" (substrate bucket, not a physical room â€” Doors throughout, Cabinets, Exterior Stucco, Fence, Window Trim, Metal Beams, etc.) â€” fields:
+"scope" (substrate bucket, not a physical room — Doors throughout, Cabinets, Exterior Stucco, Fence, Window Trim, Metal Beams, etc.) — fields:
 { type: "scope", name, substrate: "doors"|"baseboard"|"trim"|"cabinets"|"exterior_stucco"|"exterior_trim"|"fence_deck"|"metal", quantity, unit: "EA"|"LF"|"SF", coats, notes }
-SUBSTRATE RULES: Interior surfaces NEVER map to exterior_* buckets â€” interior wallsâ†’walls, interior ceilingsâ†’ceilings. Beams, columns, posts, trellis are WOOD â†’ exterior_trim (NOT metal). Use metal ONLY for railings, steel, or explicitly metal items.
+SUBSTRATE RULES: Interior surfaces NEVER map to exterior_* buckets — interior walls→walls, interior ceilings→ceilings. Beams, columns, posts, trellis are WOOD → exterior_trim (NOT metal). Use metal ONLY for railings, steel, or explicitly metal items.
 
-"tm" (Time & Materials hourly work â€” ONLY for true touch-up / spot work that has no measurable quantity) â€” fields:
+"tm" (Time & Materials hourly work — ONLY for true touch-up / spot work that has no measurable quantity) — fields:
 { type: "tm", name, hours, category: "interior_walls"|"doors"|"windows"|"trim"|"exterior_walls"|"exterior_misc"|"millwork"|"repairs"|"cleaning"|"materials", notes }
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-PURPLE PAINTING CONVENTIONS (use these defaults â€” do NOT guess)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
+PURPLE PAINTING CONVENTIONS (use these defaults — do NOT guess)
+═══════════════════════════════════════════════
 
 UNITS by substrate:
-- Wood/window trim, baseboard, crown molding, casing â†’ LF (linear feet)
-- Metal beams, columns, posts, railings â†’ LF (use the height as the length)
-- Doors, cabinet doors, drawers â†’ EA (each)
-- Cabinets (boxes), built-ins, vanities â†’ EA with size note (small/medium/large)
-- Walls, ceilings, stucco, siding â†’ SF (square feet)
-- Fence, deck â†’ LF or SF depending on context
+- Wood/window trim, baseboard, crown molding, casing → LF (linear feet)
+- Metal beams, columns, posts, railings → LF (use the height as the length)
+- Doors, cabinet doors, drawers → EA (each)
+- Cabinets (boxes), built-ins, vanities → EA with size note (small/medium/large)
+- Walls, ceilings, stucco, siding → SF (square feet)
+- Fence, deck → LF or SF depending on context
 
 COATS by scenario:
-- Color change â†’ 2 coats
-- Refresh / same color recoat â†’ 1 coat
-- New unprimed wood, drywall, or stain-to-paint conversion â†’ prime+2
-- Touch-ups â†’ 1 coat
-- Default if unstated â†’ 2 coats
+- Color change → 2 coats
+- Refresh / same color recoat → 1 coat
+- New unprimed wood, drywall, or stain-to-paint conversion → prime+2
+- Touch-ups → 1 coat
+- Default if unstated → 2 coats
 
 ITEM TYPE CHOICES (Scope vs T&M):
-- ANY measurable substrate (trim, beams, doors, cabinets, walls) â†’ "scope" with quantity + unit
+- ANY measurable substrate (trim, beams, doors, cabinets, walls) → "scope" with quantity + unit
 - Use "tm" ONLY for hourly punch-list work like "touch-ups throughout" or "repair drywall damage as needed"
-- A metal beam, even if you don't know its exact length, is "scope" (LF) with notes about needing measurement â€” NOT "tm"
-- Window wood trim is "scope" (LF) â€” NOT "tm"
-- Cabinets are "scope" (EA) â€” NOT "tm"
+- A metal beam, even if you don't know its exact length, is "scope" (LF) with notes about needing measurement — NOT "tm"
+- Window wood trim is "scope" (LF) — NOT "tm"
+- Cabinets are "scope" (EA) — NOT "tm"
 
 WINDOW TRIM QUANTITY CALCULATION:
-- An 8ft tall Ã— 6ft wide window has a perimeter of 28 LF (8+8+6+6) if all four sides have trim
+- An 8ft tall × 6ft wide window has a perimeter of 28 LF (8+8+6+6) if all four sides have trim
 - If transcript says "window with wood trim" without specifying sides, propose 28 LF (perimeter) as default
 
 METAL BEAMS / LINEAR ELEMENTS:
 - If transcript states height/length, use that as the LF quantity
-- "12ft tall metal beam" â†’ scope, metal, 12 LF
+- "12ft tall metal beam" → scope, metal, 12 LF
 - Default to 1 coat unless transcript says color change or refresh
 
 CABINETS:
 - Cabinet items are sized: Small, Medium, Large
-- A "small bathroom vanity" or "small cabinet" â†’ Small
-- A stain-to-paint conversion â†’ coats = "prime+2", note "stain to paint conversion"
-- A "small cabinet, stain-to-paint, 2 coats" â†’ quantity=1, unit=EA, coats="prime+2", note about conversion
+- A "small bathroom vanity" or "small cabinet" → Small
+- A stain-to-paint conversion → coats = "prime+2", note "stain to paint conversion"
+- A "small cabinet, stain-to-paint, 2 coats" → quantity=1, unit=EA, coats="prime+2", note about conversion
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-EXTERIOR STUCCO / SIDING / BODY â€” CRITICAL QUANTITY RULE
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
+EXTERIOR STUCCO / SIDING / BODY — CRITICAL QUANTITY RULE
+═══════════════════════════════════════════════
 
-Exterior body (stucco, siding, exterior walls) is ALWAYS measured in SQUARE FEET = perimeter Ã— wall height.
+Exterior body (stucco, siding, exterior walls) is ALWAYS measured in SQUARE FEET = perimeter × wall height.
 A bare perimeter number is NOT the SF quantity. NEVER store the raw perimeter as the SF quantity for exterior walls.
 
-When you see "exterior body", "stucco", "siding", "exterior walls" â€” three numbers matter:
+When you see "exterior body", "stucco", "siding", "exterior walls" — three numbers matter:
 1. PERIMETER (in linear feet around the building, including walls behind any garage/casita)
 2. WALL HEIGHT (typically 9-10 ft for single-story, 18-20 ft for two-story)
-3. Resulting SF = perimeter Ã— wall height
+3. Resulting SF = perimeter × wall height
 
 If the transcript gives a perimeter but NOT a wall height, you MUST emit a clarifying question with "field": "dimensions" and confidence "high" asking for the wall height. Default options should offer common heights with the formula pre-filled. Example:
 
@@ -700,31 +700,31 @@ If the transcript said "210 LF perimeter, exterior body" but did not specify wal
   id: "ext-body-height-1",
   itemIndex: <index of the exterior body scope item>,
   field: "dimensions",
-  prompt: "Wall height for the exterior body? Quantity will be calculated as perimeter Ã— wall height.",
+  prompt: "Wall height for the exterior body? Quantity will be calculated as perimeter × wall height.",
   appliesTo: "Exterior Body / Stucco",
   confidence: "high",
   options: [
-    { label: "9 ft (single story)",  value: { quantity: "210 * 9",  _formula: "210 LF perimeter Ã— 9 ft wall height",  unit: "SF" } },
-    { label: "10 ft (single story, taller ceilings)", value: { quantity: "210 * 10", _formula: "210 LF perimeter Ã— 10 ft wall height", unit: "SF" } },
-    { label: "18 ft (two story)",    value: { quantity: "210 * 18", _formula: "210 LF perimeter Ã— 18 ft wall height", unit: "SF" } },
+    { label: "9 ft (single story)",  value: { quantity: "210 * 9",  _formula: "210 LF perimeter × 9 ft wall height",  unit: "SF" } },
+    { label: "10 ft (single story, taller ceilings)", value: { quantity: "210 * 10", _formula: "210 LF perimeter × 10 ft wall height", unit: "SF" } },
+    { label: "18 ft (two story)",    value: { quantity: "210 * 18", _formula: "210 LF perimeter × 18 ft wall height", unit: "SF" } },
     { label: "Other / custom",       value: "__custom__" }
   ]
 }
 
 Until that question is answered, set the scope item's quantity to the perimeter as a placeholder string AND mark the unit as "SF (needs height)" in notes so the user sees it's incomplete. Example item:
-{ type: "scope", name: "Exterior Body", substrate: "exterior_stucco", quantity: 210, unit: "SF", coats: "2coats", notes: "PLACEHOLDER: 210 is perimeter â€” multiply by wall height to get actual SF" }
+{ type: "scope", name: "Exterior Body", substrate: "exterior_stucco", quantity: 210, unit: "SF", coats: "2coats", notes: "PLACEHOLDER: 210 is perimeter — multiply by wall height to get actual SF" }
 
 If the transcript ALREADY gave both perimeter and height (e.g. "210 LF around the house, 10ft walls"), compute it yourself and emit the scope item with quantity as a formula string: quantity: "210 * 10", unit: "SF", and DO NOT generate a clarifying question.
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-EXTERIOR EAVES / SOFFITS / OVERHANGS â€” separate formula
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
+EXTERIOR EAVES / SOFFITS / OVERHANGS — separate formula
+═══════════════════════════════════════════════
 
-Exterior eaves / soffits / overhangs (the horizontal surface under the roof overhang as you look up from below) = eave length Ã— eave width.
+Exterior eaves / soffits / overhangs (the horizontal surface under the roof overhang as you look up from below) = eave length × eave width.
 
-  - EAVE LENGTH (LF, sometimes called "eave run" or sum of "elevation lengths"): how far the overhang runs along the roof edges. NOT the same as the body perimeter â€” some elevations may have no overhang (e.g. a wall against a neighbor, a flat parapet wall, a shed addition). If the estimator hasn't specified, the default is to use the body perimeter as an approximation, but flag it.
+  - EAVE LENGTH (LF, sometimes called "eave run" or sum of "elevation lengths"): how far the overhang runs along the roof edges. NOT the same as the body perimeter — some elevations may have no overhang (e.g. a wall against a neighbor, a flat parapet wall, a shed addition). If the estimator hasn't specified, the default is to use the body perimeter as an approximation, but flag it.
   - EAVE WIDTH (ft, sometimes called "overhang depth" or "soffit depth"): how far the overhang extends out from the wall. Typical: 1.5 ft, 2 ft, 2.5 ft, 3 ft.
-  - Quantity formula: eave_length Ã— eave_width, NOT perimeter Ã— wall_height.
+  - Quantity formula: eave_length × eave_width, NOT perimeter × wall_height.
 
 If exterior eaves are mentioned with NEITHER eave length nor eave width specified, emit a high-confidence clarifying question that asks for BOTH at once (use a single combined question rather than two separate ones). Example:
 
@@ -732,13 +732,13 @@ If exterior eaves are mentioned with NEITHER eave length nor eave width specifie
   id: "eaves-dims-1",
   itemIndex: <index of eaves scope item>,
   field: "dimensions",
-  prompt: "Eave dimensions? Quantity = eave length Ã— eave width. If some elevations have no overhang, use just the lengths that do.",
+  prompt: "Eave dimensions? Quantity = eave length × eave width. If some elevations have no overhang, use just the lengths that do.",
   appliesTo: "Exterior Eaves / Soffits",
   confidence: "high",
   options: [
-    { label: "210 LF Ã— 2 ft (use body perimeter, 24\" overhang)",  value: { quantity: "210 * 2",   _formula: "210 LF eave length Ã— 2 ft eave width",   unit: "SF" } },
-    { label: "210 LF Ã— 2.5 ft (use body perimeter, 30\" overhang)", value: { quantity: "210 * 2.5", _formula: "210 LF eave length Ã— 2.5 ft eave width", unit: "SF" } },
-    { label: "210 LF Ã— 3 ft (use body perimeter, 36\" overhang)",   value: { quantity: "210 * 3",   _formula: "210 LF eave length Ã— 3 ft eave width",   unit: "SF" } },
+    { label: "210 LF × 2 ft (use body perimeter, 24\" overhang)",  value: { quantity: "210 * 2",   _formula: "210 LF eave length × 2 ft eave width",   unit: "SF" } },
+    { label: "210 LF × 2.5 ft (use body perimeter, 30\" overhang)", value: { quantity: "210 * 2.5", _formula: "210 LF eave length × 2.5 ft eave width", unit: "SF" } },
+    { label: "210 LF × 3 ft (use body perimeter, 36\" overhang)",   value: { quantity: "210 * 3",   _formula: "210 LF eave length × 3 ft eave width",   unit: "SF" } },
     { label: "Other / custom",                                      value: "__custom__" }
   ]
 }
@@ -747,9 +747,9 @@ If only the eave length is given (e.g. "180 LF of eaves") but no width, ask only
 
 NEVER use wall height as an eave dimension. NEVER use a single perimeter number as the SF of eaves on its own.
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
 CLARIFYING QUESTIONS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
 
 Generate questions for anything you had to guess. Each question MUST include 2-4 clickable options so the user can resolve it with one tap. Shape:
 
@@ -802,25 +802,25 @@ Size question for cabinets:
 Dimensions question for a room where one wall length is unclear:
 {
   options: [
-    { label: "12 Ã— 14 (12 length, 14 width)", value: { length: 12, width: 14 } },
-    { label: "14 Ã— 12 (14 length, 12 width)", value: { length: 14, width: 12 } },
+    { label: "12 × 14 (12 length, 14 width)", value: { length: 12, width: 14 } },
+    { label: "14 × 12 (14 length, 12 width)", value: { length: 14, width: 12 } },
     { label: "Other / custom", value: "__custom__" }
   ]
 }
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-ADVANCED OPTION SHAPES â€” compute formulas + multi-item updates
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
+ADVANCED OPTION SHAPES — compute formulas + multi-item updates
+═══════════════════════════════════════════════
 
 When the answer should COMPUTE a quantity from a formula, use this option shape. Note the DIFFERENT formulas: body uses WALL HEIGHT, eaves use EAVE WIDTH (overhang depth).
 
 {
-  label: "210 LF body perimeter, 10ft walls, 180 LF eave run Ã— 2.5ft eave width",
+  label: "210 LF body perimeter, 10ft walls, 180 LF eave run × 2.5ft eave width",
   value: {
     _multiPatch: [
-      { itemNameMatch: "exterior body",        patch: { quantity: "210 * 10",  _formula: "body perimeter Ã— wall height",      unit: "SF" } },
+      { itemNameMatch: "exterior body",        patch: { quantity: "210 * 10",  _formula: "body perimeter × wall height",      unit: "SF" } },
       { itemNameMatch: "exterior fascia",      patch: { quantity: 180,         _formula: "eave run length",                   unit: "LF" } },
-      { itemNameMatch: "exterior eaves",       patch: { quantity: "180 * 2.5", _formula: "eave run Ã— eave width",             unit: "SF" } }
+      { itemNameMatch: "exterior eaves",       patch: { quantity: "180 * 2.5", _formula: "eave run × eave width",             unit: "SF" } }
     ]
   }
 }
@@ -854,30 +854,30 @@ substrateMatch values: "walls" | "ceilings" | "baseboard" | "doors" | "trim" | "
 Rules:
 - "_multiPatch" applies the same answer to multiple items in one click
 - Each entry targets items via "itemNameMatch" (case-insensitive substring of item name) AND/OR "substrateMatch" (substrate type)
-- For substrateMatch on a room, the patch is auto-wrapped into the substrate field (e.g. coats: "1coat" â†’ doors.coats: "1coat")
-- "quantity" can be a STRING formula (e.g. "210 * 2.5") â€” the app evaluates it safely with mathjs
+- For substrateMatch on a room, the patch is auto-wrapped into the substrate field (e.g. coats: "1coat" → doors.coats: "1coat")
+- "quantity" can be a STRING formula (e.g. "210 * 2.5") — the app evaluates it safely with mathjs
 - Include "_formula" with a short human-readable note (shown as a hint after the value)
 - Use this whenever an answer logically updates more than one item, OR when the answer is a calculation, OR when the answer applies "throughout" / "across all" / "everywhere"
 
 WHEN TO USE substrateMatch vs itemNameMatch:
-- "1 coat for doors throughout" â†’ substrateMatch: "doors"
-- "Doors in the office only" â†’ itemNameMatch: "office", substrateMatch: "doors"
-- "Master bedroom only" â†’ itemNameMatch: "master bedroom"
-- "Exterior body and eaves" â†’ substrateMatch: "exterior_stucco" + "exterior_trim"
+- "1 coat for doors throughout" → substrateMatch: "doors"
+- "Doors in the office only" → itemNameMatch: "office", substrateMatch: "doors"
+- "Master bedroom only" → itemNameMatch: "master bedroom"
+- "Exterior body and eaves" → substrateMatch: "exterior_stucco" + "exterior_trim"
 
 When the answer ONLY updates the single item the question is about, keep the simple shape (value is a plain patch object).
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
 MANDATORY QUESTIONS (always emit, even if it pushes the budget)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
 
 Some gaps are NEVER acceptable to leave silently. For each of these, emit a clarifying question with confidence "high" no matter what:
 
-1. **Missing room dimensions.** Any "room" item where length or width is 0, null, undefined, or missing â†’ MUST ask. Use field "dimensions". Offer 2-3 common sizes for that room type as quick-pick options plus "Other / custom". Examples:
-   - Bathroom missing dims â†’ options "5 Ã— 8 (small)", "7 Ã— 10 (typical)", "10 Ã— 12 (master)", "Other / custom"
-   - Bedroom missing dims â†’ options "10 Ã— 12 (small)", "12 Ã— 14 (typical)", "14 Ã— 16 (primary)", "Other / custom"
-   - Closet missing dims â†’ options "4 Ã— 6 (reach-in)", "6 Ã— 8 (walk-in)", "Other / custom"
-   - Generic room with unknown type â†’ options "10 Ã— 12", "12 Ã— 14", "14 Ã— 16", "Other / custom"
+1. **Missing room dimensions.** Any "room" item where length or width is 0, null, undefined, or missing → MUST ask. Use field "dimensions". Offer 2-3 common sizes for that room type as quick-pick options plus "Other / custom". Examples:
+   - Bathroom missing dims → options "5 × 8 (small)", "7 × 10 (typical)", "10 × 12 (master)", "Other / custom"
+   - Bedroom missing dims → options "10 × 12 (small)", "12 × 14 (typical)", "14 × 16 (primary)", "Other / custom"
+   - Closet missing dims → options "4 × 6 (reach-in)", "6 × 8 (walk-in)", "Other / custom"
+   - Generic room with unknown type → options "10 × 12", "12 × 14", "14 × 16", "Other / custom"
    Option value shape: { length: <n>, width: <n> }
 
 2. **Exterior body without wall height** (covered in EXTERIOR BODY section above).
@@ -888,9 +888,9 @@ Some gaps are NEVER acceptable to leave silently. For each of these, emit a clar
 
 These four MANDATORY question types take priority over the soft 4-question budget. If you have 5 mandatory issues, emit 5 questions. The soft limit only applies to discretionary clarifications (coats, refresh vs color change, etc).
 
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
 RULES FOR OPTIONS:
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════
 - ALWAYS provide 2-3 concrete proposed options, not "Unknown" placeholders
 - ALWAYS include "Other / custom" as the last option
 - Base the proposed options on Purple Painting conventions above
@@ -900,7 +900,7 @@ RULES FOR OPTIONS:
 Transcript:
 ${transcript}
 
-CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY â€” your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
+CRITICAL OUTPUT RULE: Respond with the raw JSON object ONLY — your entire response must be valid JSON beginning with { and ending with }. Do NOT write any explanation, preamble, "I'll parse...", headings, or markdown fences. The first character of your response must be {.`;
 }
 
 function buildNotesPrompt(notes) {
@@ -909,26 +909,26 @@ function buildNotesPrompt(notes) {
 ITEM SHAPES:
 "room": { type:"room", name, length, width, height (default 9),
   walls:{enabled,coats}, ceiling:{enabled,coats}, baseboard:{enabled,coats}, doors:{enabled,coats,count}, notes }
-  â€” coats: "1coat" | "2coats" | "prime+2"
+  — coats: "1coat" | "2coats" | "prime+2"
 "scope": { type:"scope", name, substrate, quantity, unit, coats, notes }
-  â€” substrate: doors | baseboard | trim | cabinets | exterior_stucco | exterior_trim | fence_deck | metal | walls | ceilings
-  â€” unit: EA | LF | SF
+  — substrate: doors | baseboard | trim | cabinets | exterior_stucco | exterior_trim | fence_deck | metal | walls | ceilings
+  — unit: EA | LF | SF
 "tm":    { type:"tm", name, hours, category, notes }
-  â€” category: interior_walls | doors | windows | trim | exterior_walls | exterior_misc | millwork | repairs | cleaning | materials
+  — category: interior_walls | doors | windows | trim | exterior_walls | exterior_misc | millwork | repairs | cleaning | materials
 
 DEFAULTS (apply silently):
-- Trim/baseboard â†’ LF Â· Doors â†’ EA Â· Walls/ceilings/stucco â†’ SF
-- Coats unstated â†’ 2coats Â· Height unstated â†’ 9 Â· Substrate enabled â†’ true if mentioned
+- Trim/baseboard → LF · Doors → EA · Walls/ceilings/stucco → SF
+- Coats unstated → 2coats · Height unstated → 9 · Substrate enabled → true if mentioned
 
 EXAMPLES:
-- "3BR ~14x12" â†’ 3 room items "Bedroom 1/2/3", 14x12x9, all substrates enabled at 2coats, doors count=1
-- "doors and trim only in hall" â†’ room "Hall" with walls/ceiling disabled, baseboard + doors enabled
-- "exterior body + fascia, 1 coat refresh" â†’ 2 scope items: exterior_stucco SF 1coat, exterior_trim LF 1coat
+- "3BR ~14x12" → 3 room items "Bedroom 1/2/3", 14x12x9, all substrates enabled at 2coats, doors count=1
+- "doors and trim only in hall" → room "Hall" with walls/ceiling disabled, baseboard + doors enabled
+- "exterior body + fascia, 1 coat refresh" → 2 scope items: exterior_stucco SF 1coat, exterior_trim LF 1coat
 
-QUESTIONS: only for true ambiguities ("the bathroom" â†’ which/how many/size?). Format:
+QUESTIONS: only for true ambiguities ("the bathroom" → which/how many/size?). Format:
 { id, itemIndex, field, prompt, appliesTo, confidence, options:[{label,value}, ..., {label:"Other / custom", value:"__custom__"}] }
 
-OPTION VALUE â€” usually a plain patch object like { coats:"1coat" }. For answers that update multiple items, use _multiPatch:
+OPTION VALUE — usually a plain patch object like { coats:"1coat" }. For answers that update multiple items, use _multiPatch:
 
 Substrate-wide ("1 coat for doors throughout"):
 { _multiPatch: [{ substrateMatch:"doors", patch:{ coats:"1coat" } }] }
@@ -940,12 +940,12 @@ Multi-substrate ("1 coat for doors, trim, ceilings"):
   { substrateMatch:"ceilings", patch:{ coats:"1coat" } }
 ] }
 
-Formula-based ("210 LF perimeter Ã— 2.5ft eaves"):
-{ _multiPatch: [{ itemNameMatch:"exterior body", patch:{ quantity:"210 * 2.5", _formula:"perimeter Ã— eave depth", unit:"SF" }}] }
+Formula-based ("210 LF perimeter × 2.5ft eaves"):
+{ _multiPatch: [{ itemNameMatch:"exterior body", patch:{ quantity:"210 * 2.5", _formula:"perimeter × eave depth", unit:"SF" }}] }
 
 - substrateMatch: "walls" | "ceilings" | "baseboard" | "doors" | "trim" | "cabinets" | "exterior_stucco" | "exterior_trim" | "fence_deck" | "metal"
 - itemNameMatch: case-insensitive substring of item name
-- patches with substrateMatch auto-wrap into the substrate field on rooms (coats:"1coat" â†’ doors.coats:"1coat")
+- patches with substrateMatch auto-wrap into the substrate field on rooms (coats:"1coat" → doors.coats:"1coat")
 - quantity can be a string formula (mathjs evaluated)
 - Use substrateMatch for "throughout"/"all"/"every", itemNameMatch for specific rooms
 
@@ -963,13 +963,13 @@ function buildCombinedNotesPrompt(notes) {
 
 No preamble, no markdown fences.
 
-jobInfo: { customerName, address, email, phone, tier } â€” each is { value, confidence: "high"|"medium"|"low"|"unknown" }
+jobInfo: { customerName, address, email, phone, tier } — each is { value, confidence: "high"|"medium"|"low"|"unknown" }
   customerName / address: when the notes state them (e.g. "Sanders @ 626 Ardmore Dr"), quote VERBATIM with confidence "high". Do NOT paraphrase, do NOT guess, do NOT invent. If absent, value:"" and confidence:"unknown".
   tier value: "standard" | "production" | "highend" | "prevailing"
-  tier signals: "PM"/"rental"â†’production Â· "custom home"/"luxury"/"designer"/"Emerald"â†’highend Â· "DIR"/"prevailing"/"public works"/"school"â†’prevailing Â· elseâ†’standard
+  tier signals: "PM"/"rental"→production · "custom home"/"luxury"/"designer"/"Emerald"→highend · "DIR"/"prevailing"/"public works"/"school"→prevailing · else→standard
   If a field isn't in the notes, value:"" and confidence:"unknown"
 
-flags: { vacant, petsKids, leadPaint, activeBusiness } â€” each { value:bool, confidence }
+flags: { vacant, petsKids, leadPaint, activeBusiness } — each { value:bool, confidence }
 
 items: ITEM SHAPES
 "room": { type:"room", name, length, width, height (default 9), walls:{enabled,coats}, ceiling:{enabled,coats}, baseboard:{enabled,coats}, doors:{enabled,coats,count}, notes }
@@ -981,40 +981,40 @@ items: ITEM SHAPES
   category: interior_walls|doors|windows|trim|exterior_walls|exterior_misc|millwork|repairs|cleaning|materials
 
 DEFAULTS (apply silently):
-- Trim/baseboardâ†’LF Â· Doorsâ†’EA Â· Walls/ceilings/stuccoâ†’SF
-- Coats unstatedâ†’2coats Â· Height unstatedâ†’9 Â· Substrate enabledâ†’true if mentioned
+- Trim/baseboard→LF · Doors→EA · Walls/ceilings/stucco→SF
+- Coats unstated→2coats · Height unstated→9 · Substrate enabled→true if mentioned
 
 EXAMPLES:
-"3BR ~14x12" â†’ 3 rooms "Bedroom 1/2/3", 14x12x9, all substrates enabled at 2coats, doors count=1
-"doors and trim only in hall" â†’ room "Hall", walls/ceiling disabled, baseboard+doors enabled
-"exterior body + fascia, 1 coat refresh" â†’ 2 scope items: exterior_stucco SF 1coat, exterior_trim LF 1coat
+"3BR ~14x12" → 3 rooms "Bedroom 1/2/3", 14x12x9, all substrates enabled at 2coats, doors count=1
+"doors and trim only in hall" → room "Hall", walls/ceiling disabled, baseboard+doors enabled
+"exterior body + fascia, 1 coat refresh" → 2 scope items: exterior_stucco SF 1coat, exterior_trim LF 1coat
 
-EXTERIOR BODY / STUCCO â€” CRITICAL:
-exterior_stucco quantity in SF = body perimeter (LF) Ã— wall height (ft). Perimeter alone is NOT the SF quantity.
-If transcript gives perimeter but NO wall height, emit the scope item with quantity=perimeter and notes "PLACEHOLDER â€” needs wall height", AND emit a high-confidence question asking for wall height with options "9 ft (1 story)", "10 ft (1 story tall)", "18 ft (2 story)", "Other/custom". The option's patch should be { quantity:"<perimeter> * <height>", _formula:"<perimeter> Ã— <height>", unit:"SF" }.
+EXTERIOR BODY / STUCCO — CRITICAL:
+exterior_stucco quantity in SF = body perimeter (LF) × wall height (ft). Perimeter alone is NOT the SF quantity.
+If transcript gives perimeter but NO wall height, emit the scope item with quantity=perimeter and notes "PLACEHOLDER — needs wall height", AND emit a high-confidence question asking for wall height with options "9 ft (1 story)", "10 ft (1 story tall)", "18 ft (2 story)", "Other/custom". The option's patch should be { quantity:"<perimeter> * <height>", _formula:"<perimeter> × <height>", unit:"SF" }.
 If transcript gives BOTH (e.g. "210 LF around, 10ft walls"), compute it: quantity:"210 * 10", unit:"SF". No question needed.
 
-EXTERIOR EAVES â€” different formula:
-exterior eaves/soffits SF = eave run length (LF) Ã— eave width (ft, the overhang depth). NOT wall height. NOT just perimeter alone.
-Eave run length is NOT always the same as body perimeter â€” some elevations may have no overhang. Default: use body perimeter as approximation but flag it.
-Eave width is typically 1.5, 2, 2.5, or 3 ft. If unspecified, ask for it; offer options "210 Ã— 2 ft", "210 Ã— 2.5 ft", "210 Ã— 3 ft" where 210 = body perimeter default.
+EXTERIOR EAVES — different formula:
+exterior eaves/soffits SF = eave run length (LF) × eave width (ft, the overhang depth). NOT wall height. NOT just perimeter alone.
+Eave run length is NOT always the same as body perimeter — some elevations may have no overhang. Default: use body perimeter as approximation but flag it.
+Eave width is typically 1.5, 2, 2.5, or 3 ft. If unspecified, ask for it; offer options "210 × 2 ft", "210 × 2.5 ft", "210 × 3 ft" where 210 = body perimeter default.
 NEVER use wall height for eaves. NEVER store a bare perimeter as SF for eaves.
 
 questions: shape { id, itemIndex, field, prompt, appliesTo, confidence, options:[{label,value}, ..., {label:"Other / custom", value:"__custom__"}] }
 
 MANDATORY questions (ALWAYS emit, no budget limit):
-1. Any room with missing/0 length OR width â†’ ask dimensions. Bathroom defaults: "5Ã—8 small", "7Ã—10 typical", "10Ã—12 master". Bedroom: "10Ã—12", "12Ã—14", "14Ã—16". Closet: "4Ã—6", "6Ã—8". Generic: "10Ã—12", "12Ã—14", "14Ã—16". Option value shape: { length:<n>, width:<n> }.
+1. Any room with missing/0 length OR width → ask dimensions. Bathroom defaults: "5×8 small", "7×10 typical", "10×12 master". Bedroom: "10×12", "12×14", "14×16". Closet: "4×6", "6×8". Generic: "10×12", "12×14", "14×16". Option value shape: { length:<n>, width:<n> }.
 2. Exterior body without wall height (see CRITICAL above).
 3. Exterior eaves without eave length OR eave width (see EAVES above).
-4. Room with doors enabled but doorCount=0/missing â†’ ask count.
+4. Room with doors enabled but doorCount=0/missing → ask count.
 
 DISCRETIONARY questions (apply 4-question budget): coats ambiguity, color-change vs refresh, etc.
 
-OPTION VALUE â€” usually a plain patch like { coats:"1coat" }. For multi-item answers, use _multiPatch:
+OPTION VALUE — usually a plain patch like { coats:"1coat" }. For multi-item answers, use _multiPatch:
 Substrate-wide: { _multiPatch:[{ substrateMatch:"doors", patch:{ coats:"1coat" }}] }
 Multi-substrate: { _multiPatch:[{ substrateMatch:"doors", patch:{ coats:"1coat" }},{ substrateMatch:"trim", patch:{ coats:"1coat" }}] }
-Wall-height formula (body): { _multiPatch:[{ itemNameMatch:"exterior body", patch:{ quantity:"210 * 10", _formula:"body perimeter Ã— wall height", unit:"SF" }}] }
-Eave-width formula (eaves/soffits): { _multiPatch:[{ itemNameMatch:"exterior eaves", patch:{ quantity:"180 * 2.5", _formula:"eave run Ã— eave width", unit:"SF" }}] }
+Wall-height formula (body): { _multiPatch:[{ itemNameMatch:"exterior body", patch:{ quantity:"210 * 10", _formula:"body perimeter × wall height", unit:"SF" }}] }
+Eave-width formula (eaves/soffits): { _multiPatch:[{ itemNameMatch:"exterior eaves", patch:{ quantity:"180 * 2.5", _formula:"eave run × eave width", unit:"SF" }}] }
 
 Use substrateMatch for "throughout"/"all"/"every", itemNameMatch for specific rooms. Patches with substrateMatch auto-wrap into the room substrate field. quantity can be a string formula (mathjs).
 
@@ -1025,7 +1025,7 @@ ${notes}`;
 }
 
 function buildTakeoffPrompt(takeoff) {
-  // No longer used â€” takeoff mode parses XLSX deterministically in-browser.
+  // No longer used — takeoff mode parses XLSX deterministically in-browser.
   // Kept here as a fallback in case we need to handle a non-standard pasted format.
   return `Parse this digital takeoff into scope items. Return ONLY JSON: { "items": [...], "questions": [] }. Each item: { type: "scope", name, substrate, quantity, unit, coats: "2coats", notes }.
 
@@ -1048,9 +1048,9 @@ function classifyHeuristic(text) {
   const fillerRe = /\b(um|uh|so|okay|ok|like|y'?know|i mean|basically|right\?|alright)\b/gi;
   const fillerCount = (t.match(fillerRe) || []).length;
   if (len > 800 && fillerCount >= 2) {
-    return { mode: "voice", rationale: `length ${len} chars, ${fillerCount} filler words â€” looks like a transcript` };
+    return { mode: "voice", rationale: `length ${len} chars, ${fillerCount} filler words — looks like a transcript` };
   }
-  return { mode: "notes", rationale: `length ${len} chars, ${fillerCount} filler words â€” looks like terse notes` };
+  return { mode: "notes", rationale: `length ${len} chars, ${fillerCount} filler words — looks like terse notes` };
 }
 
 function buildClassifierPrompt(text) {
@@ -1088,7 +1088,7 @@ function buildOverlayPrompt(items, notesText) {
   }));
   return `You are adjusting a digital takeoff with accompanying estimator notes. Return ONLY JSON: { "overrides": [...], "additions": [...], "exclusions": [...], "questions": [...] }, no preamble or markdown fences.
 
-Existing takeoff items (DO NOT duplicate these â€” adjust via overrides):
+Existing takeoff items (DO NOT duplicate these — adjust via overrides):
 ${JSON.stringify(summary, null, 2)}
 
 Estimator notes overlay:
@@ -1096,11 +1096,11 @@ ${notesText}
 
 Output shape:
 - "overrides":  [{ "itemIndex": <number from above>, "patch": { ...fields to change on that item, e.g. coats, quantity, notes } }]
-- "additions":  [<full new scope item objects>] â€” ONLY when notes describe substrates not already in the takeoff
-- "exclusions": [<string>, ...] â€” exclusion lines mentioned in the notes
-- "questions":  [<clarifying question objects, same shape as Notes mode>] â€” only true ambiguities
+- "additions":  [<full new scope item objects>] — ONLY when notes describe substrates not already in the takeoff
+- "exclusions": [<string>, ...] — exclusion lines mentioned in the notes
+- "questions":  [<clarifying question objects, same shape as Notes mode>] — only true ambiguities
 
-Be CONSERVATIVE with additions â€” most overlay notes adjust existing items (e.g. "1 coat for doors throughout") which should be overrides, not additions. patch.quantity may be a string formula (evaluated with mathjs).`;
+Be CONSERVATIVE with additions — most overlay notes adjust existing items (e.g. "1 coat for doors throughout") which should be overrides, not additions. patch.quantity may be a string formula (evaluated with mathjs).`;
 }
 
 async function applyNotesOverlay(items, notesText) {
@@ -1114,7 +1114,7 @@ async function applyNotesOverlay(items, notesText) {
 }
 
 // ============================================================================
-// XLSX TAKEOFF PARSER (deterministic â€” no AI)
+// XLSX TAKEOFF PARSER (deterministic — no AI)
 // ============================================================================
 //
 // Handles Purple Painting's standard BoQ format:
@@ -1129,7 +1129,7 @@ async function applyNotesOverlay(items, notesText) {
 // Returns: { items: [...], exclusions: [...], warnings: [...] }
 
 const SECTION_TO_SUBSTRATE = {
-  // direct section name â†’ substrate key
+  // direct section name → substrate key
   "walls": "walls",
   "wall": "walls",
   "ceiling": "ceilings",
@@ -1143,7 +1143,7 @@ const SECTION_TO_SUBSTRATE = {
   "window frames / casing": "trim",
   "window frame (paint interior side)": "trim",
   "exterior": "exterior_stucco",
-  "miscellaneous item paint": null,    // ambiguous â€” let description-based mapping decide
+  "miscellaneous item paint": null,    // ambiguous — let description-based mapping decide
   "vinyl wall cover": "walls",
   "wallcovering": "walls",
   "wood staining": "trim",
@@ -1287,13 +1287,13 @@ function parseTakeoffSheet(sheetData, sheetName) {
     const qty = row[cols.qty];
     const note = cols.note >= 0 ? row[cols.note] : "";
 
-    // Has a numeric quantity AND a unit â†’ it's a data row
+    // Has a numeric quantity AND a unit → it's a data row
     const hasNumericQty = typeof qty === "number" && qty > 0;
     const hasUnit = unit != null && String(unit).trim() !== "";
 
     if (hasNumericQty && hasUnit && desc) {
       if (inExclusions) {
-        // Numeric exclusion (unusual) â€” still capture as text
+        // Numeric exclusion (unusual) — still capture as text
         result.exclusions.push(String(desc).trim());
         continue;
       }
@@ -1307,7 +1307,7 @@ function parseTakeoffSheet(sheetData, sheetName) {
         unit: normalizedUnit,
         coats: "2coats",
         notes: note ? String(note).trim() : (currentSection ? `Section: ${currentSection}` : ""),
-        // Carry the source rate/amount for the chat-side flow to reference (not used in pricing here â€”
+        // Carry the source rate/amount for the chat-side flow to reference (not used in pricing here —
         // the tier multiplier is applied to catalog rates, not the spreadsheet's own rates)
         _sourceRate: typeof row[cols.rate] === "number" ? row[cols.rate] : null,
         _sourceAmount: typeof row[cols.amount] === "number" ? row[cols.amount] : null,
@@ -1316,21 +1316,21 @@ function parseTakeoffSheet(sheetData, sheetName) {
       };
       result.items.push(item);
     } else if (desc && !hasNumericQty && isSectionHeader(desc)) {
-      // It's a section header row â€” update context, OR detect Exclusions transition
+      // It's a section header row — update context, OR detect Exclusions transition
       const cleanDesc = String(desc).trim();
       const lower = cleanDesc.toLowerCase();
       if (lower === "exclusions" || lower.startsWith("exclusion")) {
         inExclusions = true;
         currentSection = "";
       } else if (inExclusions) {
-        // Inside the exclusions block â€” every text row is an exclusion line
+        // Inside the exclusions block — every text row is an exclusion line
         result.exclusions.push(cleanDesc);
       } else {
         // Regular section header (e.g. "Walls", "Ceiling", "Door and Frames")
         currentSection = cleanDesc;
       }
     }
-    // Otherwise: blank row or skip row â€” ignore
+    // Otherwise: blank row or skip row — ignore
   }
 
   return result;
@@ -1458,17 +1458,17 @@ function detectGroupsFromBuiltBudget(builtBudget, library) {
 
 export default function App() {
   const [library, setLibrary] = useState(DEFAULT_LIBRARY);
-  // Catalog (IDs + live prices) â€” Supabase mirror is the source of truth; the
+  // Catalog (IDs + live prices) — Supabase mirror is the source of truth; the
   // hardcoded TM_CATALOG / CATALOG_IDS act as offline fallback so a network
   // blip mid-estimate can't break a build.
   const [tmCatalog, setTmCatalog] = useState(TM_CATALOG);
   const [catalogIds, setCatalogIds] = useState(CATALOG_IDS);
   // Full Supabase catalog (non-T&M rows, shaped for the BuildChat system prompt).
-  // Populated by the same startup fetch as tmCatalog/catalogIds â€” no second
+  // Populated by the same startup fetch as tmCatalog/catalogIds — no second
   // network call. Stage D step 11 reads matches directly from this list instead
   // of calling search_catalog, so the agent never has to guess search params.
   // The ref mirrors the state so payload reads are insulated from stale
-  // closures / pre-fetch renders â€” buildPayload reads .current, which always
+  // closures / pre-fetch renders — buildPayload reads .current, which always
   // reflects the latest write regardless of which render captured it.
   const [fullCatalog, setFullCatalog] = useState([]);
   const fullCatalogRef = useRef([]);
@@ -1477,7 +1477,7 @@ export default function App() {
 
   // Pricing tier (used by scope builder to pick prep language).
   // Customer/job identity (name, address, email, phone) is handled at the
-  // chat level when the payload is pasted â€” NOT collected in the artifact.
+  // chat level when the payload is pasted — NOT collected in the artifact.
   const [tier, setTier] = useState("standard");
   const [inferredJobInfo, setInferredJobInfo] = useState({}); // retained for tier hint only
   // Customer / job identity parsed from the transcript. Editable in Step 2 so
@@ -1503,7 +1503,7 @@ export default function App() {
   const [clarifications, setClarifications] = useState([]);
   const [inferredFlags, setInferredFlags] = useState({});
   const [answeredQuestions, setAnsweredQuestions] = useState({}); // { id: answer | null }
-  const [clarifyRemaining, setClarifyRemaining] = useState(0); // ClarifyChat queue size â€” gates Build Scope
+  const [clarifyRemaining, setClarifyRemaining] = useState(0); // ClarifyChat queue size — gates Build Scope
 
   // Context flags
   const [flags, setFlags] = useState({
@@ -1520,11 +1520,11 @@ export default function App() {
   const [categorizing, setCategorizing] = useState(false);
   const [customScope, setCustomScope] = useState({}); // { groupKey: [strings] }
   const [customExclusions, setCustomExclusions] = useState([]);
-  const [buildStarted, setBuildStarted] = useState(false);          // Step 3 â€” gates the BuildChat panel
-  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt â€” feeds Scope + DocumentChat
+  const [buildStarted, setBuildStarted] = useState(false);          // Step 3 — gates the BuildChat panel
+  const [builtBudget, setBuiltBudget] = useState(null);             // Snapshot from BuildChat.onBuilt — feeds Scope + DocumentChat
   const [budgetConfirmed, setBudgetConfirmed] = useState(false);    // "Budget looks good" gate clicked
-  const [scopeGroups, setScopeGroups] = useState([]);               // Cost-group keys resolved at categorize time (budget â†’ fallback to parsed)
-  const [documentStarted, setDocumentStarted] = useState(false);    // Step 5 â€” gates the DocumentChat panel
+  const [scopeGroups, setScopeGroups] = useState([]);               // Cost-group keys resolved at categorize time (budget → fallback to parsed)
+  const [documentStarted, setDocumentStarted] = useState(false);    // Step 5 — gates the DocumentChat panel
 
   // Load library from storage on mount
   useEffect(() => {
@@ -1549,9 +1549,9 @@ export default function App() {
         // Stage-D-facing full catalog: drop T&M rows (those flow through
         // payload.tmItems / payload.tmCatalog), shape to the same field names
         // the build-chat tool contract already uses (organizationCostItemId,
-        // costCodeId, â€¦) so the agent can read fields directly without
+        // costCodeId, …) so the agent can read fields directly without
         // re-mapping. Stays in sync with tmCatalog/catalogIds via this same
-        // fetch â€” no second network call.
+        // fetch — no second network call.
         const fullRows = data
           .filter((r) => r.kind !== "tm")
           .map((r) => ({
@@ -1574,7 +1574,7 @@ export default function App() {
 
         // T&M catalog: shape kind='tm' rows to match TM_CATALOG consumers.
         // CRITICAL: `code` carries the real cost-code id (code_id), NOT the bare
-        // number â€” this is what becomes costCodeId on cost-item creation.
+        // number — this is what becomes costCodeId on cost-item creation.
         const tmRows = data
           .filter((r) => r.kind === "tm")
           .map((r) => ({
@@ -1641,8 +1641,8 @@ export default function App() {
     setParseError("");
 
     try {
-      // â”€â”€ FILE PRESENT: takeoff path (with optional notes overlay) â”€â”€â”€â”€â”€â”€
-      // Whether or not there's accompanying text, a file means "takeoff" â€”
+      // ── FILE PRESENT: takeoff path (with optional notes overlay) ──────
+      // Whether or not there's accompanying text, a file means "takeoff" —
       // text is treated as an overlay that adjusts the parsed items.
       if (hasFile) {
         const result = await parseXlsxFile(takeoffFile);
@@ -1675,13 +1675,13 @@ export default function App() {
             exclusions = exclusions.concat(overlay.exclusions || []);
             overlayClarifications = overlay.questions || [];
           } catch (overlayErr) {
-            // Overlay failure is non-fatal â€” surface as a warning, keep the takeoff
+            // Overlay failure is non-fatal — surface as a warning, keep the takeoff
             warnings = warnings.concat([`Notes overlay failed: ${overlayErr.message}`]);
           }
         }
 
         setInputMode("takeoff");
-        setDetection(null);                       // no banner â€” file path is unambiguous
+        setDetection(null);                       // no banner — file path is unambiguous
         setNotesOverlayText(overlayText);
         setRooms(normalized);
         setClarifications(overlayClarifications);
@@ -1696,9 +1696,9 @@ export default function App() {
         return;
       }
 
-      // â”€â”€ TEXT ONLY: classifier decides voice vs notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── TEXT ONLY: classifier decides voice vs notes ──────────────────
       let resolvedMode = forceMode;
-      let rationale = forceMode ? `Manual override â†’ ${forceMode}` : "";
+      let rationale = forceMode ? `Manual override → ${forceMode}` : "";
       if (!resolvedMode) {
         try {
           const classified = await classifyInput(transcript);
@@ -1707,7 +1707,7 @@ export default function App() {
         } catch (clsErr) {
           const h = classifyHeuristic(transcript);
           resolvedMode = h.mode;
-          rationale = `classifier unavailable â€” ${h.rationale}`;
+          rationale = `classifier unavailable — ${h.rationale}`;
         }
       }
       setInputMode(resolvedMode);
@@ -1758,7 +1758,7 @@ export default function App() {
 
         setTakeoffExclusions([]);
         setTakeoffWarnings(combined._truncated
-          ? [`Response was truncated and recovered. ${normalized.length} items + ${questions.length} questions parsed â€” but some items at the end may be missing. Add any missing items manually on the Clarify + Items screen.`]
+          ? [`Response was truncated and recovered. ${normalized.length} items + ${questions.length} questions parsed — but some items at the end may be missing. Add any missing items manually on the Clarify + Items screen.`]
           : []);
 
         setStep(2);
@@ -1768,7 +1768,7 @@ export default function App() {
       // Voice mode: Haiku for job info (always whole transcript, unchanged),
       // Sonnet for items. The items path chunks long transcripts on timestamp
       // boundaries, streams each chunk so it can't 504, then merges + dedupes.
-      // Short transcripts take the single-call path (still streamed â€” safe).
+      // Short transcripts take the single-call path (still streamed — safe).
       const chunks = chunkTranscript(transcript);
       const itemsWork = async () => {
         if (chunks.length === 1) {
@@ -1793,7 +1793,7 @@ export default function App() {
               timeoutMs: 55000,
               stream: true,
               prompt: buildItemsPrompt(chunks[i]),
-              label: `items Â§${i + 1}/${chunks.length}`,
+              label: `items §${i + 1}/${chunks.length}`,
             });
             perChunk.push(r);
           } catch (e) {
@@ -1887,8 +1887,8 @@ export default function App() {
             role: "user",
             content: `You are categorizing prep items for a painting proposal. Given the job context and a library of prep items per cost group, classify each item into one of three buckets:
 
-- "recommended" â€” high confidence this applies to this specific job
-- "suggested" â€” plausible but not default; needs estimator judgment
+- "recommended" — high confidence this applies to this specific job
+- "suggested" — plausible but not default; needs estimator judgment
 - (everything else stays in the Library bucket, not in your response)
 
 Job context:
@@ -1929,7 +1929,7 @@ Reasoning hints:
 - If flags.leadPaint is true, recommend lead-safe practices
 - If flags.activeBusiness is true, recommend extra care/cleanup language
 - High-end tier should recommend more thorough prep
-- Doors+Frames: "Remove hardware and label" vs "Mask hardware in place" are mutually exclusive â€” pick one for recommended based on tier (high-end = remove, standard = mask)`,
+- Doors+Frames: "Remove hardware and label" vs "Mask hardware in place" are mutually exclusive — pick one for recommended based on tier (high-end = remove, standard = mask)`,
           }],
         }),
       });
@@ -2033,12 +2033,12 @@ Reasoning hints:
   // ============================================================================
 
   function buildPayload() {
-    // Prefer the ref over the state â€” both are written in the same fetch
+    // Prefer the ref over the state — both are written in the same fetch
     // effect, but the ref's .current sidesteps any stale-closure / pre-state-
     // propagation render that captured a buildPayload with the initial [].
     const catalogFullForPayload = fullCatalogRef.current.length ? fullCatalogRef.current : fullCatalog;
     if (!catalogFullForPayload.length) {
-      console.warn("buildPayload: catalogFull is empty â€” Stage D will fall back to search_catalog / asking the user.");
+      console.warn("buildPayload: catalogFull is empty — Stage D will fall back to search_catalog / asking the user.");
     }
     const selectedScope = {};
     Object.entries(scopeSelections).forEach(([gk, items]) => {
@@ -2053,11 +2053,11 @@ Reasoning hints:
     const tmItems = rooms.filter((r) => r.type === "tm");
 
     // Pre-filter catalogFull by job nature to keep the build prompt under the
-    // Anthropic 30K ITPM ceiling. Cost-code numbers: 1000â€“4999 = interior,
-    // 5000â€“7999 = exterior, 8000+ = universal/shared (repairs, cleaning,
-    // materials â€” always keep). When the job has BOTH interior and exterior
+    // Anthropic 30K ITPM ceiling. Cost-code numbers: 1000–4999 = interior,
+    // 5000–7999 = exterior, 8000+ = universal/shared (repairs, cleaning,
+    // materials — always keep). When the job has BOTH interior and exterior
     // scope, keep all rows (correctness > token savings). Rows with a missing
-    // or non-numeric costCodeNumber are kept as well â€” unknowns never drop.
+    // or non-numeric costCodeNumber are kept as well — unknowns never drop.
     const isExteriorSubstrate = (s) => {
       const x = (s || "").toLowerCase();
       return x.startsWith("exterior_") || x === "fence_deck" || x === "metal";
@@ -2086,8 +2086,8 @@ Reasoning hints:
     }
 
     // Map each T&M item to its catalog ID. Read from the `tmCatalog` STATE var
-    // (Supabase mirror, fallback to module constant) â€” not the module constant
-    // directly â€” so the live cost-code id flows through. NOTE: match.code is
+    // (Supabase mirror, fallback to module constant) — not the module constant
+    // directly — so the live cost-code id flows through. NOTE: match.code is
     // the real cost-code id (e.g. 22PWmcdSP9GM), NOT a bare number like "2000".
     const tmWithCatalog = tmItems.map((tm) => {
       const cat = (tm.category || "").toLowerCase();
@@ -2100,7 +2100,7 @@ Reasoning hints:
         catalogId: match?.id,
         catalogName: match?.name,
         costCode: match?.code,        // real cost-code id (passed as costCodeId)
-        costCodeId: match?.code,      // explicit alias â€” same value, clearer name
+        costCodeId: match?.code,      // explicit alias — same value, clearer name
         costCodeName: match?.codeName,
         unitCost: match?.unitCost,
         unitPrice: match?.unitPrice,
@@ -2143,12 +2143,12 @@ Reasoning hints:
     };
   }
 
-  // Manual-copy modal state â€” shown when clipboard APIs fail in the sandboxed iframe
+  // Manual-copy modal state — shown when clipboard APIs fail in the sandboxed iframe
   const [manualCopyText, setManualCopyText] = useState(null);
-  // Last copy result â€” for inline "Copied âœ“" feedback on buttons
+  // Last copy result — for inline "Copied ✓" feedback on buttons
   const [lastCopyResult, setLastCopyResult] = useState(null); // { label, method, at }
 
-  // Robust clipboard write â€” tries modern API, then execCommand fallback, then
+  // Robust clipboard write — tries modern API, then execCommand fallback, then
   // shows a textarea modal as a last resort. Artifacts iframes often have
   // restricted clipboard access, so we can't trust navigator.clipboard alone.
   async function copyToClipboard(text, label = "Payload") {
@@ -2195,16 +2195,16 @@ ${JSON.stringify(payload)}
 
 Before building the cost groups, ASK THE USER for the following (one batch, using ask_user_input_v0):
 
-1. **Customer / Job** â€” Which customer and job does this apply to? Search JobTread for the customer first. If new, gather: customer name, primary contact name, email, phone, address (job site). If existing, confirm the job (or create a new one under that customer).
+1. **Customer / Job** — Which customer and job does this apply to? Search JobTread for the customer first. If new, gather: customer name, primary contact name, email, phone, address (job site). If existing, confirm the job (or create a new one under that customer).
 
-2. **Pricing tier** â€” The artifact inferred \`${payload.tier.label}\` (${payload.tier.multiplier}x). Confirm or override. Options: Standard (1.0x), Production (0.85x), High-End (1.35x), Prevailing Wage (1.65x). This multiplier gets applied to BOTH unitCost AND unitPrice on every cost item (so margin % stays intact).
+2. **Pricing tier** — The artifact inferred \`${payload.tier.label}\` (${payload.tier.multiplier}x). Confirm or override. Options: Standard (1.0x), Production (0.85x), High-End (1.35x), Prevailing Wage (1.65x). This multiplier gets applied to BOTH unitCost AND unitPrice on every cost item (so margin % stays intact).
 
-3. **Estimate preparer** â€” Who prepared this estimate? (Peter, Lyric, Kareem, etc.) Needed for the document.
+3. **Estimate preparer** — Who prepared this estimate? (Peter, Lyric, Kareem, etc.) Needed for the document.
 
-4. **Recipient** â€” Default to job primary contact. Confirm before generating the customer-facing proposal.
+4. **Recipient** — Default to job primary contact. Confirm before generating the customer-facing proposal.
 
 Then, when creating the JobTread job, set these custom fields:
-- **Job Type** (22PWsEVVW4aj): Based on tier. Standardâ†’"Residential - Standard Home"; Productionâ†’"Property Management / Production"; High-Endâ†’"Residential - Custom House"; Prevailing Wageâ†’"Prevailing Wage". Confirm with user if ambiguous (e.g. commercial vs residential).
+- **Job Type** (22PWsEVVW4aj): Based on tier. Standard→"Residential - Standard Home"; Production→"Property Management / Production"; High-End→"Residential - Custom House"; Prevailing Wage→"Prevailing Wage". Confirm with user if ambiguous (e.g. commercial vs residential).
 - **How Did Bid Come In** (22PWsDkAPRYB): \`${payload.bidOrigin}\` (artifact-determined from inputMode = "${payload.inputMode}").
 
 Once the above is confirmed, use the JobTread MCP to:
@@ -2224,19 +2224,19 @@ Once the above is confirmed, use the JobTread MCP to:
       if (picked.length) {
         const label = gk === "_universal" ? "General" : (library.cost_groups[gk]?.label || gk);
         lines.push(`\n${label}:`);
-        picked.forEach((p) => lines.push(`â€¢ ${p}`));
+        picked.forEach((p) => lines.push(`• ${p}`));
       }
     });
     copyToClipboard(lines.join("\n").trim(), "Scope Text");
   }
 
   function copyExclusionText() {
-    const picked = Object.entries(exclusionSelections).filter(([, v]) => v).map(([k]) => `â€¢ ${k}`);
+    const picked = Object.entries(exclusionSelections).filter(([, v]) => v).map(([k]) => `• ${k}`);
     copyToClipboard(picked.join("\n"), "Exclusions");
   }
 
   // ============================================================================
-  // UNIFIED CHAT â€” state, refs, effects, helpers, send pipelines
+  // UNIFIED CHAT — state, refs, effects, helpers, send pipelines
   // ============================================================================
   // ONE persistent chat box across all steps. Lives in App so step changes
   // don't unmount it. activeChatMode dispatches sends to one of three
@@ -2260,7 +2260,7 @@ Once the above is confirmed, use the JobTread MCP to:
   // mode; once answered it pops and the next question becomes active.
   const [clarifyQueue, setClarifyQueue] = useState([]);
 
-  // Per-mode context refs â€” IDs accumulated as tools execute. Same shape
+  // Per-mode context refs — IDs accumulated as tools execute. Same shape
   // as the old per-component contextRefs. Build's ID accumulator drives the
   // [CURRENT BUILD CONTEXT] injection that piggybacks on the latest user
   // message (keeps system prompt byte-stable so /api/chat ephemeral cache
@@ -2279,13 +2279,15 @@ Once the above is confirmed, use the JobTread MCP to:
     errors: [],
   });
 
-  // Active chat mode is derived from step gates. When null (steps 1/4, or
-  // step 3 pre-Start, or step 5 pre-Start), the input is disabled but the
-  // log stays visible.
+  // Active chat mode is derived from step. Steps 2/3/5 are fully active —
+  // a fresh user message into step 3 or step 5 dispatches to build/document
+  // regardless of whether the user clicked the explicit "Start" button (the
+  // button is now just a convenience that pushes a canned opening line).
+  // Steps 1 and 4 disable the input but keep the log visible.
   const activeChatMode =
     step === 2 ? "clarify" :
-    step === 3 && buildStarted ? "build" :
-    step === 5 && documentStarted ? "document" :
+    step === 3 ? "build" :
+    step === 5 ? "document" :
     null;
 
   // Rebuild the clarify queue when parser clarifications change. Drop a
@@ -2300,7 +2302,7 @@ Once the above is confirmed, use the JobTread MCP to:
       if (q.length > 0) return prev;
       return [{
         role: "assistant",
-        content: `I parsed your input cleanly. Tell me anything you want to change â€” "1 coat on all doors", "remove the master bath", "kitchen is 14x16", "add a hall closet 6x4", etc.`,
+        content: `I parsed your input cleanly. Tell me anything you want to change — "1 coat on all doors", "remove the master bath", "kitchen is 14x16", "add a hall closet 6x4", etc.`,
         mode: "clarify",
       }];
     });
@@ -2326,13 +2328,13 @@ Once the above is confirmed, use the JobTread MCP to:
   }, [chatMessages, chatThinking, clarifyQueue.length]);
 
   // Apply patch directives to rooms. Same protocol as the original
-  // ClarifyChat applyMultiPatch handler â€” each directive has ONE selector:
-  //   _add: <newItem>                              â†’ append
-  //   _remove + _itemIndex|itemNameMatch           â†’ delete
-  //   _itemIndex + patch                           â†’ patch by exact index
-  //   itemNameMatch + patch                        â†’ patch by name substring
-  //   substrateMatch + patch                       â†’ patch substrate across rooms
-  //   both name & substrate                        â†’ substrate sub-target within match
+  // ClarifyChat applyMultiPatch handler — each directive has ONE selector:
+  //   _add: <newItem>                              → append
+  //   _remove + _itemIndex|itemNameMatch           → delete
+  //   _itemIndex + patch                           → patch by exact index
+  //   itemNameMatch + patch                        → patch by name substring
+  //   substrateMatch + patch                       → patch substrate across rooms
+  //   both name & substrate                        → substrate sub-target within match
   // Returns count of items added/removed/changed.
   function chatApplyMultiPatch(directives) {
     let next = [...rooms];
@@ -2410,7 +2412,7 @@ Once the above is confirmed, use the JobTread MCP to:
     setRooms(next);
   }
 
-  // â”€â”€ CLARIFY CHIP / SKIP â€” local pattern-match, no API call. â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── CLARIFY CHIP / SKIP — local pattern-match, no API call. ─────────
   function onChatChipClick(option) {
     const active = clarifyQueue[0];
     if (!active || chatThinking || activeChatMode !== "clarify") return;
@@ -2454,8 +2456,8 @@ Once the above is confirmed, use the JobTread MCP to:
     setClarifyQueue((prev) => [...prev.slice(1), active]);
   }
 
-  // â”€â”€ CLARIFY SEND â€” Haiku direct (api.anthropic.com), no tools, JSON
-  //    actions parsed and dispatched via chatApplyMultiPatch. â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── CLARIFY SEND — Haiku direct (api.anthropic.com), no tools, JSON
+  //    actions parsed and dispatched via chatApplyMultiPatch. ─────────
   async function sendClarifyMessage(userText) {
     const active = clarifyQueue[0] || null;
     // Reconstruct API history from prior clarify-mode messages.
@@ -2484,7 +2486,7 @@ Once the above is confirmed, use the JobTread MCP to:
       const roomDigest = rooms.slice(0, 40).map((r, idx) => formatItemDigest(r, idx)).join("\n");
       const systemContext = `You are an interactive estimating assistant inside a painting takeoff tool. You're talking to a contractor reviewing items parsed from their job walk. Your job: interpret what they say and translate it into action directives that the app will execute, then reply naturally about what you did.
 
-CURRENT LINE ITEMS (index in brackets â€” use _itemIndex to target precisely):
+CURRENT LINE ITEMS (index in brackets — use _itemIndex to target precisely):
 ${roomDigest}
 
 Respond ONLY with JSON of shape:
@@ -2496,71 +2498,71 @@ Respond ONLY with JSON of shape:
 No preamble, no markdown fences. Just JSON.
 
 ACTION SHAPES (each action has exactly ONE selector):
-  { "_itemIndex": <int>, "patch": {...} }                â€” exact index
-  { "itemNameMatch": "<substr>", "patch": {...} }        â€” case-insensitive name substring
+  { "_itemIndex": <int>, "patch": {...} }                — exact index
+  { "itemNameMatch": "<substr>", "patch": {...} }        — case-insensitive name substring
   { "substrateMatch": "doors|walls|ceilings|baseboard|trim", "patch": {...} }
-  { "itemNameMatch": "...", "substrateMatch": "...", "patch": {...} }  â€” both; substrate sub-targets within matched item
-  { "_remove": true, "_itemIndex": <int> }               â€” delete an item
-  { "_remove": true, "itemNameMatch": "<substr>" }       â€” delete all matching
-  { "_add": <newItem> }                                  â€” append a new line item
+  { "itemNameMatch": "...", "substrateMatch": "...", "patch": {...} }  — both; substrate sub-targets within matched item
+  { "_remove": true, "_itemIndex": <int> }               — delete an item
+  { "_remove": true, "itemNameMatch": "<substr>" }       — delete all matching
+  { "_add": <newItem> }                                  — append a new line item
 
 patch fields (apply to relevant items):
   coats: "1coat" | "2coats" | "prime+2"
   quantity: number OR mathjs formula string
   unit: "SF" | "LF" | "EA" | "HR"
   length, width, height: number
-  enabled: bool   â€” toggle substrate on/off in a room
-  name: string    â€” rename
-  doorCount: int  â€” number of doors in a room
-  hours: number   â€” T&M only
+  enabled: bool   — toggle substrate on/off in a room
+  name: string    — rename
+  doorCount: int  — number of doors in a room
+  hours: number   — T&M only
 
 _add newItem shape examples:
   Room: { "type":"room", "name":"Hall Closet", "length":6, "width":4, "height":9, "walls":{"enabled":true,"coats":"2coats"}, "ceiling":{"enabled":true,"coats":"2coats"}, "baseboard":{"enabled":true,"coats":"2coats"}, "doors":{"enabled":true,"coats":"2coats","count":1} }
   Scope: { "type":"scope", "name":"Exterior Fascia", "substrate":"exterior_trim", "quantity":210, "unit":"LF", "coats":"2coats" }
   T&M:   { "type":"tm", "name":"Repairs", "hours":4, "category":"repairs" }
 
-EXTERIOR BODY / STUCCO â€” CRITICAL RULE:
-exterior_stucco quantity in SF = body perimeter (LF) Ã— wall height (ft). A bare perimeter is NOT the SF.
-If you see an exterior body item with quantity that looks like a raw perimeter (e.g. 210 SF for a whole house â€” that's way too low), point it out and ASK for the wall height before changing it. Then patch with quantity: "<perimeter> * <height>" as a formula string.
+EXTERIOR BODY / STUCCO — CRITICAL RULE:
+exterior_stucco quantity in SF = body perimeter (LF) × wall height (ft). A bare perimeter is NOT the SF.
+If you see an exterior body item with quantity that looks like a raw perimeter (e.g. 210 SF for a whole house — that's way too low), point it out and ASK for the wall height before changing it. Then patch with quantity: "<perimeter> * <height>" as a formula string.
 
-EXTERIOR EAVES / SOFFITS â€” DIFFERENT RULE:
-exterior eaves quantity in SF = eave run length (LF) Ã— eave width (ft, the overhang depth â€” typically 1.5-3 ft).
-Eave run length is NOT necessarily the same as body perimeter â€” some elevations may have no overhang. If the user hasn't told you which is which, default to body perimeter as the eave run but flag it. NEVER use wall height for eaves. NEVER store a bare perimeter as the SF for eaves.
+EXTERIOR EAVES / SOFFITS — DIFFERENT RULE:
+exterior eaves quantity in SF = eave run length (LF) × eave width (ft, the overhang depth — typically 1.5-3 ft).
+Eave run length is NOT necessarily the same as body perimeter — some elevations may have no overhang. If the user hasn't told you which is which, default to body perimeter as the eave run but flag it. NEVER use wall height for eaves. NEVER store a bare perimeter as the SF for eaves.
 
 EXAMPLES:
 User: "all walls 2 coats not 1"
-â†’ {"actions":[{"substrateMatch":"walls","patch":{"coats":"2coats"}}],"reply":"Switched all walls to 2 coats."}
+→ {"actions":[{"substrateMatch":"walls","patch":{"coats":"2coats"}}],"reply":"Switched all walls to 2 coats."}
 
 User: "remove the dining room"
-â†’ {"actions":[{"_remove":true,"itemNameMatch":"dining"}],"reply":"Removed the dining room."}
+→ {"actions":[{"_remove":true,"itemNameMatch":"dining"}],"reply":"Removed the dining room."}
 
 User: "kitchen is actually 16x14"
-â†’ {"actions":[{"itemNameMatch":"kitchen","patch":{"length":16,"width":14}}],"reply":"Updated kitchen to 16Ã—14."}
+→ {"actions":[{"itemNameMatch":"kitchen","patch":{"length":16,"width":14}}],"reply":"Updated kitchen to 16×14."}
 
 User: "add a hall closet 6x4 doors and trim only"
-â†’ {"actions":[{"_add":{"type":"room","name":"Hall Closet","length":6,"width":4,"height":9,"walls":{"enabled":false},"ceiling":{"enabled":false},"baseboard":{"enabled":true,"coats":"2coats"},"doors":{"enabled":true,"coats":"2coats","count":1}}}],"reply":"Added Hall Closet (6Ã—4) â€” doors and trim only."}
+→ {"actions":[{"_add":{"type":"room","name":"Hall Closet","length":6,"width":4,"height":9,"walls":{"enabled":false},"ceiling":{"enabled":false},"baseboard":{"enabled":true,"coats":"2coats"},"doors":{"enabled":true,"coats":"2coats","count":1}}}],"reply":"Added Hall Closet (6×4) — doors and trim only."}
 
 User: "exterior body is 210 perimeter, 10ft walls"
-â†’ {"actions":[{"itemNameMatch":"exterior body","patch":{"quantity":"210 * 10","unit":"SF"}}],"reply":"Exterior body set to 210 Ã— 10 = 2100 SF."}
+→ {"actions":[{"itemNameMatch":"exterior body","patch":{"quantity":"210 * 10","unit":"SF"}}],"reply":"Exterior body set to 210 × 10 = 2100 SF."}
 
 User: "the walls are 18ft tall, it's a two story"  (when exterior body already exists with a placeholder perimeter)
-â†’ {"actions":[{"itemNameMatch":"exterior body","patch":{"quantity":"<existing perimeter> * 18","unit":"SF"}}],"reply":"Updated exterior body for 18ft walls."}
+→ {"actions":[{"itemNameMatch":"exterior body","patch":{"quantity":"<existing perimeter> * 18","unit":"SF"}}],"reply":"Updated exterior body for 18ft walls."}
 
 User: "eaves are 180 LF run, 2.5 ft overhang"
-â†’ {"actions":[{"itemNameMatch":"exterior eaves","patch":{"quantity":"180 * 2.5","unit":"SF"}}],"reply":"Eaves set to 180 Ã— 2.5 = 450 SF."}
+→ {"actions":[{"itemNameMatch":"exterior eaves","patch":{"quantity":"180 * 2.5","unit":"SF"}}],"reply":"Eaves set to 180 × 2.5 = 450 SF."}
 
 User: "eaves are 24 inches"  (when eaves item exists, length unknown)
-â†’ {"actions":[],"reply":"Got the 2 ft overhang width. What's the total eave run length (LF)? Default would be body perimeter (210 LF) if all elevations have eaves."}
+→ {"actions":[],"reply":"Got the 2 ft overhang width. What's the total eave run length (LF)? Default would be body perimeter (210 LF) if all elevations have eaves."}
 
 User: "what's the door count on the bedrooms?"
-â†’ {"actions":[],"reply":"Bedroom 1 has 1 door, Bedroom 2 has 1 door, Bedroom 3 has 2 doors."}
+→ {"actions":[],"reply":"Bedroom 1 has 1 door, Bedroom 2 has 1 door, Bedroom 3 has 2 doors."}
 
 User: "scratch that, undo"
-â†’ {"actions":[],"reply":"I can't undo previous actions automatically â€” tell me what to change back and I'll do it. E.g. 'put walls back to 1 coat'."}
+→ {"actions":[],"reply":"I can't undo previous actions automatically — tell me what to change back and I'll do it. E.g. 'put walls back to 1 coat'."}
 
 If the user asks something unclear, return {"actions":[], "reply":"<ask a clarifying question>"}.
 
-Keep replies short â€” 1-2 sentences. The user can see the items update live below.`;
+Keep replies short — 1-2 sentences. The user can see the items update live below.`;
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -2602,22 +2604,22 @@ Keep replies short â€” 1-2 sentences. The user can see the items update liv
     }
   }
 
-  // â”€â”€ BUILD: /api/chat with BUILD_CHAT_TOOLS, tool-use loop. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── BUILD: /api/chat with BUILD_CHAT_TOOLS, tool-use loop. ───────────
   function buildBuildSystemPrompt() {
     const payload = buildPayload();
     return `You are a JobTread build assistant for Purple Painting Co. Your job is to build a budget in JobTread by calling the provided tools.
 
 PRINCIPLES
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool â€” the tool result is the only ground truth.
+═══════════════════
+- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
 - Tools available: find_customer, get_customer_jobs, find_job, create_customer, create_job, create_cost_group, create_cost_item. Each tool's input schema describes its required and optional fields.
 - When you need a decision from the user (e.g. picking among multiple search hits, filling in missing details), reply with text and NO tool calls. Otherwise prefer calling tools over describing what you would do.
-- Read each tool result before deciding the next step. Tool results are real JobTread API responses â€” examine them for IDs, errors, and confirmation.
+- Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
 - If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
-- CUSTOMER SEARCH IS MANDATORY. ALWAYS call find_customer before ever suggesting, mentioning, or asking about creating a customer. Never claim a customer "doesn't exist", "wasn't found", or "isn't in JobTread" unless find_customer has actually returned an empty nodes array on THIS turn. Treat ANY name-like input â€” including a single word or a short partial fragment such as "purple" â€” as a valid search query and pass it to find_customer as-is. Do NOT dismiss short or fragmentary input as a "voice fragment", typo, or incomplete utterance, and do NOT ask the user to retype it before searching. The customer list is small and names are reasonably unique, so partial matches are expected to work. Only AFTER find_customer returns zero matches may you offer to create a new customer.
+- CUSTOMER SEARCH IS MANDATORY. ALWAYS call find_customer before ever suggesting, mentioning, or asking about creating a customer. Never claim a customer "doesn't exist", "wasn't found", or "isn't in JobTread" unless find_customer has actually returned an empty nodes array on THIS turn. Treat ANY name-like input — including a single word or a short partial fragment such as "purple" — as a valid search query and pass it to find_customer as-is. Do NOT dismiss short or fragmentary input as a "voice fragment", typo, or incomplete utterance, and do NOT ask the user to retype it before searching. The customer list is small and names are reasonably unique, so partial matches are expected to work. Only AFTER find_customer returns zero matches may you offer to create a new customer.
 
 IDS YOU'LL NEED
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════
 ORG: 22PWNY9u7qZd
 UNITS: SF=22PWNYKLitQU, LF=22PWNYKLfXKr, EA=22PWNYKLcv3n, HR=22PWNYKLfARY
 COST TYPES: Labor=22PWNYKLxD4B, Materials=22PWNYKLxwqk
@@ -2628,48 +2630,48 @@ CUSTOM FIELDS:
   Phone (customerContact)=22PWNYKhWqBE
   Lead Stage (customerContact)=22PWsFuiWzEq
 
-INTERIOR CATALOG â€” IDs are stable; live unit prices live in payload.catalog (loaded from the Supabase mirror). "code" IS the real cost-code JobTread id (pass it as costCodeId on every cost item â€” NOT a bare number like "2100"):
+INTERIOR CATALOG — IDs are stable; live unit prices live in payload.catalog (loaded from the Supabase mirror). "code" IS the real cost-code JobTread id (pass it as costCodeId on every cost item — NOT a bare number like "2100"):
   Walls:     { "1coat":22PWT9nDL9HP, "2coats":22PWiSS293E2, "prime+2":22PWiSgjqkaq, code:22PWmcdKrCnn }
   Ceilings:  { "1coat":22PWickkTi46, "2coats":22PWictZ3V84, "prime+2":22PWicwN2pxL, code:22PWmcdMcqbZ }
   Baseboard: { "1coat":22PWiYQt5Pq8, "2coats":22PWih8XPvPm,                          code:22PWmcdjtJ9C }
-  Doors:     { "1coat":22PWmgVUki5g, "2coats":22PWmgivcQCV, "prime+2":22PXFmB69VLf, code:22PWmcdUnRSP }   (INTERIOR doors â€” code 2100 "Slab Door Paint")
-When the mirror is loaded, payload.catalog[substrate][coats] is an OBJECT { id, unitCost, unitPrice, unitId, costTypeId, codeId } â€” read unitCost/unitPrice from there. If it's a bare string (fallback when the mirror didn't load), only the id is available.
+  Doors:     { "1coat":22PWmgVUki5g, "2coats":22PWmgivcQCV, "prime+2":22PXFmB69VLf, code:22PWmcdUnRSP }   (INTERIOR doors — code 2100 "Slab Door Paint")
+When the mirror is loaded, payload.catalog[substrate][coats] is an OBJECT { id, unitCost, unitPrice, unitId, costTypeId, codeId } — read unitCost/unitPrice from there. If it's a bare string (fallback when the mirror didn't load), only the id is available.
 
-TIER MULTIPLIERS (apply to BOTH unitCost AND unitPrice â€” margin % preserved):
+TIER MULTIPLIERS (apply to BOTH unitCost AND unitPrice — margin % preserved):
   standard=1.00, production=0.85, highend=1.35, prevailing=1.65
 
 CRITICAL JT RULES
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════
 1. Cost item catalog link = organizationCostItemId (NOT sourceCostItemId).
 2. Tier multiplier applies to unitCost AND unitPrice. Margin stays constant.
-3. Cost items carry their own dimensional quantityFormula (e.g. "2 * (12 + 14) * 9") â€” do NOT use "{Parent Quantity}". The subgroup above them stays empty of quantity; the API's job.costItems endpoint reads quantity off the item directly.
-4. Flat creates only: parent â†’ subgroup â†’ item. Never nest lineItems on createCostGroup.
-5. Picklist custom fields can't be empty â€” only set them when you have a value.
-6. Job Type from tier: standardâ†’"Residential - Standard Home", productionâ†’"Property Management / Production", highendâ†’"Residential - Custom House", prevailingâ†’"Prevailing Wage".
-7. How Did Bid Come In: payload.bidOrigin "Job Walk"â†’"Requested Job Walk", "Digital Takeoff"â†’"Received Digital Bid Invite", "Partner Work Order"â†’"Partner Work Order".
+3. Cost items carry their own dimensional quantityFormula (e.g. "2 * (12 + 14) * 9") — do NOT use "{Parent Quantity}". The subgroup above them stays empty of quantity; the API's job.costItems endpoint reads quantity off the item directly.
+4. Flat creates only: parent → subgroup → item. Never nest lineItems on createCostGroup.
+5. Picklist custom fields can't be empty — only set them when you have a value.
+6. Job Type from tier: standard→"Residential - Standard Home", production→"Property Management / Production", highend→"Residential - Custom House", prevailing→"Prevailing Wage".
+7. How Did Bid Come In: payload.bidOrigin "Job Walk"→"Requested Job Walk", "Digital Takeoff"→"Received Digital Bid Invite", "Partner Work Order"→"Partner Work Order".
 8. Catalog is the source of truth. For any non-interior substrate (fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), call search_catalog FIRST and pick the best match; asking the user for organizationCostItemId / costCodeId is a last resort only when search returns nothing usable.
 
 BUILD SEQUENCE
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-Stage A â€” Resolve customer + job:
-1. The payload may already carry payload.customerName, payload.siteAddress, and payload.jobName â€” these are pre-filled from the parsed transcript and confirmed by the user in Step 2. USE THEM DIRECTLY whenever non-empty. Do NOT re-ask the user for any identity field that the payload already carries. Only ask if the corresponding payload field is empty ("").
-2. Call find_customer with payload.customerName (or whatever name fragment the user gave if payload.customerName was empty). Single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for the contact details still missing (email, phone â€” name and address come from the payload) and then call create_customer with name=payload.customerName and address=payload.siteAddress. Never skip the find_customer step.
+═══════════════════
+Stage A — Resolve customer + job:
+1. The payload may already carry payload.customerName, payload.siteAddress, and payload.jobName — these are pre-filled from the parsed transcript and confirmed by the user in Step 2. USE THEM DIRECTLY whenever non-empty. Do NOT re-ask the user for any identity field that the payload already carries. Only ask if the corresponding payload field is empty ("").
+2. Call find_customer with payload.customerName (or whatever name fragment the user gave if payload.customerName was empty). Single words and partial names are fine and expected to work. If find_customer returns exactly one match, confirm with the user and proceed with that customer. If it returns multiple matches, list them and let the user pick. ONLY if find_customer returns zero matches (empty nodes array) may you ask for the contact details still missing (email, phone — name and address come from the payload) and then call create_customer with name=payload.customerName and address=payload.siteAddress. Never skip the find_customer step.
 3. If an existing customer is chosen, call get_customer_jobs. If a job already matches, use it. Else call create_job with name=payload.jobName (fall back to payload.siteAddress if payload.jobName is empty), address=payload.siteAddress.
 4. When calling create_job, always include tier (from payload.tier) and bidOrigin (from payload.bidOrigin) so the custom fields populate.
 
-Stage B â€” Top-level structure (create ONLY the side(s) that will hold work):
-5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step â€” and skip Stage C entirely since there are no rooms to place.
-6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets â€” the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
+Stage B — Top-level structure (create ONLY the side(s) that will hold work):
+5. Create the "Interior" top-level cost group (no parentCostGroupId) ONLY if payload.rooms has at least one room OR payload.scopeBuckets has at least one bucket whose substrate does NOT start with "exterior_". On an exterior-only job (no rooms and no interior buckets), SKIP this step — and skip Stage C entirely since there are no rooms to place.
+6. Create the "Exterior" top-level cost group (no parentCostGroupId) ONLY if payload.scopeBuckets has at least one bucket whose substrate starts with "exterior_". On an interior-only job (no exterior buckets — the common case), SKIP this step. Never create an empty top-level group; each side's parentCostGroupId must exist before any Stage C/D items reference it, and if a side has no work, it simply doesn't exist.
 
-Stage C â€” Rooms (interior). Prices come DIRECTLY from payload.catalog (loaded from the Supabase mirror â€” the single source of truth for catalog IDs and unit prices). For each cost item, read unitCost / unitPrice off payload.catalog[substrate][coats], multiply each by the tier multiplier, and write the result onto every createCostItem. Do NOT call get_catalog_prices, do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
+Stage C — Rooms (interior). Prices come DIRECTLY from payload.catalog (loaded from the Supabase mirror — the single source of truth for catalog IDs and unit prices). For each cost item, read unitCost / unitPrice off payload.catalog[substrate][coats], multiply each by the tier multiplier, and write the result onto every createCostItem. Do NOT call get_catalog_prices, do NOT hardcode prices, do NOT ask the user for them, and do NOT leave unitCost/unitPrice null (JT shows $0 on the budget if they aren't written on the item itself).
 
 For each room in payload.rooms:
 7. Create parent cost group with parentCostGroupId=<Interior.id>.
 8. For each enabled substrate, create subgroup + cost item:
-   a. Subgroup is a plain organizational container â€” create it with NO quantityFormula and NO quantity. Its only job is grouping the cost item underneath it.
+   a. Subgroup is a plain organizational container — create it with NO quantityFormula and NO quantity. Its only job is grouping the cost item underneath it.
       Subgroup names: "Drywall Walls", "Drywall Ceilings", "Wood Baseboard", "Doors+Frames".
       Unit IDs (for display on the subgroup): walls/ceiling=SF, baseboard=LF, doors=EA.
-   b. Cost item under that subgroup carries the dimensional formula ITSELF â€” do NOT use "{Parent Quantity}" inheritance. This is what makes the item's quantity readable via the job.costItems API.
+   b. Cost item under that subgroup carries the dimensional formula ITSELF — do NOT use "{Parent Quantity}" inheritance. This is what makes the item's quantity readable via the job.costItems API.
       - organizationCostItemId = catalog entry by substrate+coats
       - name = "<Substrate label> - Existing - <Coats label>" (e.g. "Drywall Walls - Existing - 2-Coats")
       - costCodeId = catalog "code" for that substrate
@@ -2680,24 +2682,24 @@ For each room in payload.rooms:
           ceiling cost item:   quantityFormula = "<L> * <W>"
           baseboard cost item: quantityFormula = "2 * (<L> + <W>)"
           doors cost item:     quantity = <doorCount>  (literal EA, no formula)
-      - unitCost  = payload.catalog[substrate][coats].unitCost  Ã— tier multiplier
-      - unitPrice = payload.catalog[substrate][coats].unitPrice Ã— tier multiplier
+      - unitCost  = payload.catalog[substrate][coats].unitCost  × tier multiplier
+      - unitPrice = payload.catalog[substrate][coats].unitPrice × tier multiplier
 
-Stage D â€” Scope buckets:
+Stage D — Scope buckets:
 For each item in payload.scopeBuckets:
 9. parent = Exterior if substrate starts with "exterior_", else Interior.
 10. Create cost group with literal quantity + unitId by item.unit.
-11. Create cost item. For substrates IN the 4-item interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] Ã— tier multiplier (same as Stage C). For substrates NOT in the interior catalog (stucco, fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), DO NOT call search_catalog. The full org catalog is already in payload.catalogFull â€” an array of rows each shaped { organizationCostItemId, name, costCodeId, costCodeNumber, costCodeName, costTypeId, unitId, unitName, unitCost, unitPrice, substrate, condition, coats }. Find the matching row IN THAT ARRAY: pick the row whose name or substrate contains the material word from the scope bucket (e.g. for an exterior stucco bucket â†’ row whose name starts with "Stucco"; "exterior" lives in code_name only and is irrelevant to the lookup), and whose coats field matches the desired coat level (1-coat â†’ coats value with "1-Coat" / 1 coat / no "prime"; 2-coats â†’ "2-Coats" without "prime"; prime+2 â†’ contains both "Prime" and "2"). Then read organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice DIRECTLY from that row â€” no tool call. Multiply unitCost AND unitPrice by the tier multiplier. ONLY if no row in payload.catalogFull matches the material at all may you ask the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Never leave unitCost/unitPrice null.
+11. Create cost item. For substrates IN the 4-item interior catalog above, read unitCost/unitPrice from payload.catalog[substrate][coats] × tier multiplier (same as Stage C). For substrates NOT in the interior catalog (stucco, fascia, soffit, eaves, trim, railings, metal, cabinets, etc.), DO NOT call search_catalog. The full org catalog is already in payload.catalogFull — an array of rows each shaped { organizationCostItemId, name, costCodeId, costCodeNumber, costCodeName, costTypeId, unitId, unitName, unitCost, unitPrice, substrate, condition, coats }. Find the matching row IN THAT ARRAY: pick the row whose name or substrate contains the material word from the scope bucket (e.g. for an exterior stucco bucket → row whose name starts with "Stucco"; "exterior" lives in code_name only and is irrelevant to the lookup), and whose coats field matches the desired coat level (1-coat → coats value with "1-Coat" / 1 coat / no "prime"; 2-coats → "2-Coats" without "prime"; prime+2 → contains both "Prime" and "2"). Then read organizationCostItemId, costCodeId, unitId, unitCost, and unitPrice DIRECTLY from that row — no tool call. Multiply unitCost AND unitPrice by the tier multiplier. ONLY if no row in payload.catalogFull matches the material at all may you ask the user for organizationCostItemId + costCodeId + unitCost + unitPrice. Never leave unitCost/unitPrice null.
 
-Stage E â€” T&M items:
+Stage E — T&M items:
 For each item in payload.tmItems:
-12. payload.tmItems already include catalogId, costCode (the real cost-code id), unitCost, unitPrice â€” use directly. costCode IS the costCodeId; do not use any bare code number.
+12. payload.tmItems already include catalogId, costCode (the real cost-code id), unitCost, unitPrice — use directly. costCode IS the costCodeId; do not use any bare code number.
 13. T&M items belong under their cost-code group from payload.tmCatalog (find/create the group as needed). Don't nest under Interior or Exterior.
 
-Stage F â€” Summary:
+Stage F — Summary:
 14. After all built, reply with a clean markdown summary in EXACTLY this structure. Do NOT use pipe "|" table syntax. Do NOT add extra prose or rehash the build narrative. Use the heading, the labeled lines, and one bullet per cost item on its own line. Substitute the bracketed placeholders with real values from payload + the build context (use payload.tier.label and payload.tier.multiplier for the Tier line; use the actual jobId in the link):
 
-## âœ… Build Complete
+## ✅ Build Complete
 
 **Customer:** <customer name>
 **Job:** <job name>
@@ -2706,26 +2708,30 @@ Stage F â€” Summary:
 **Cost Groups (<count>):** <comma-separated group names>
 
 **Cost Items (<count>):**
-- <item name> â€” <quantity> <unit> @ <coats>
-- <item name> â€” <quantity> <unit> @ <coats>
+- <item name> — <quantity> <unit> @ <coats>
+- <item name> — <quantity> <unit> @ <coats>
 (one bullet per cost item, each on its own line)
 
 **[Open Job in JobTread](https://app.jobtread.com/jobs/<jobId>)**
 
 PAYLOAD (what you're building)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-IDENTITY FIELDS â€” payload.customerName, payload.siteAddress, and payload.jobName at the top level are pre-filled from the transcript and confirmed by the user in Step 2. Use them DIRECTLY in find_customer / create_customer / create_job; do not re-ask the user for them. They will only be "" when the transcript didn't state them AND the user didn't fill them in.
+═══════════════════
+IDENTITY FIELDS — payload.customerName, payload.siteAddress, and payload.jobName at the top level are pre-filled from the transcript and confirmed by the user in Step 2. Use them DIRECTLY in find_customer / create_customer / create_job; do not re-ask the user for them. They will only be "" when the transcript didn't state them AND the user didn't fill them in.
 
 ${JSON.stringify(payload)}`;
   }
 
   function buildToApiMessages(history) {
-    // Slice off the first message â€” opening assistant pushed by startBuild.
-    // Anthropic requires the first message to be from the user. Then inject
-    // [CURRENT BUILD CONTEXT] onto the LATEST user message so the model sees
-    // current state each turn â€” without mutating the system prompt, which
-    // must stay byte-stable for api/chat.js's ephemeral cache_control to hit.
-    const messages = history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+    // Anthropic requires the first message to be from the user. Skip any
+    // leading assistant turns (the canned opening from startBuild, or none
+    // if the user landed on step 3 and typed without clicking Start Build).
+    // Then inject [CURRENT BUILD CONTEXT] onto the LATEST user message so
+    // the model sees current state each turn — without mutating the system
+    // prompt, which must stay byte-stable for api/chat.js's ephemeral
+    // cache_control to hit.
+    let firstUserIdx = 0;
+    while (firstUserIdx < history.length && history[firstUserIdx].role !== "user") firstUserIdx++;
+    const messages = history.slice(firstUserIdx).map((m) => ({ role: m.role, content: m.content }));
     if (messages.length === 0) return messages;
     const ctxLine = `[CURRENT BUILD CONTEXT] ${JSON.stringify({
       customerId: buildContextRef.current.customerId,
@@ -2811,6 +2817,11 @@ ${JSON.stringify(payload)}`;
   }
 
   async function sendBuildMessage(userText) {
+    // Auto-flip the Step 3 gate so the step card transitions from "Start
+    // Build" to "in progress" the moment the user actually sends — the
+    // explicit Start button stays as a convenience but is no longer
+    // required for the chat to work.
+    if (!buildStarted) setBuildStarted(true);
     let history = [...chatMessages, { role: "user", content: userText, mode: "build" }];
     setChatMessages(history);
     const MAX_STEPS = 20;
@@ -2822,7 +2833,7 @@ ${JSON.stringify(payload)}`;
         history = [...history, { role: "assistant", content: data.content, mode: "build" }];
         setChatMessages(history);
         if (data.stop_reason !== "tool_use") {
-          // end_turn / max_tokens / stop_sequence â€” lift snapshot if we built.
+          // end_turn / max_tokens / stop_sequence — lift snapshot if we built.
           if (buildContextRef.current.jobId &&
               Object.keys(buildContextRef.current.costGroupIds).length > 0) {
             setBuiltBudget({
@@ -2846,62 +2857,62 @@ ${JSON.stringify(payload)}`;
         history = [...history, { role: "user", content: toolResultBlocks, mode: "build" }];
         setChatMessages(history);
       }
-      setChatMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps â€” pausing. What would you like to do?", mode: "build" }]);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps — pausing. What would you like to do?", mode: "build" }]);
     } catch (e) {
       setChatError(e.message || "Something went wrong");
       setChatMessages((prev) => [...prev, { role: "assistant", content: `(Error: ${e.message})`, mode: "build" }]);
     }
   }
 
-  // â”€â”€ DOCUMENT: /api/chat with DOCUMENT_CHAT_TOOLS, tool-use loop. â”€â”€â”€â”€â”€
+  // ── DOCUMENT: /api/chat with DOCUMENT_CHAT_TOOLS, tool-use loop. ─────
   function buildDocumentSystemPrompt() {
     const payload = buildPayload();
     return `You are a JobTread document assistant for Purple Painting Co. Your job is to create and edit the customer-facing proposal document by calling the provided tools.
 
 PRINCIPLES
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool â€” the tool result is the only ground truth.
+═══════════════════
+- Call tools to do REAL work. NEVER claim an action succeeded without calling the corresponding tool — the tool result is the only ground truth.
 - Tools available: find_user, get_job_cost_items, create_document, update_document. Each tool's input schema describes its required and optional fields.
 - When you need a decision from the user (preparer confirmation, recipient confirmation, conversational edits), reply with text and NO tool calls. Otherwise prefer calling tools.
-- Read each tool result before deciding the next step. Tool results are real JobTread API responses â€” examine them for IDs, errors, and confirmation.
+- Read each tool result before deciding the next step. Tool results are real JobTread API responses — examine them for IDs, errors, and confirmation.
 - If a tool returns an error, report it and decide whether to retry, ask the user for clarification, or move on.
 
 IDS YOU'LL NEED
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════
 ORG: 22PWNY9u7qZd
-JOB: ${builtBudget?.jobId || "(not built yet â€” ask the user for the job ID)"}
-CUSTOMER: ${builtBudget?.customerId || "(unknown â€” ask the user)"}
+JOB: ${builtBudget?.jobId || "(not built yet — ask the user for the job ID)"}
+CUSTOMER: ${builtBudget?.customerId || "(unknown — ask the user)"}
 TYPE: use "customerOrder" for customer-facing proposals.
 
 CRITICAL DOCUMENT RULES
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-1. update_document.lineItems uses the PROVEN costGroup-wrapper structure (verified against a live $8,219 document). One or more top-level entries with { _type:"costGroup", name:<group label>, lineItems:[<costItem children>] }. Each costItem child MUST include { _type:"costItem", jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice } â€” pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node. Discriminator is "costGroup"/"costItem" (NOT "newCostGroup"/"newCostItem"). jobCostItemId is the node's id â€” NOT sourceCostItemId, NOT organizationCostItemId.
-2. create_document.name MUST exactly match a JT TEMPLATE name: "Proposal" | "Selections" | "Change Order" | "Interior Scope of work proposal". Default "Proposal". The descriptive title (e.g. "Smith Family â€” 123 Main St â€” Interior Repaint Proposal") goes in 'subject', NEVER in 'name' â€” JT rejects non-template names.
+═══════════════════
+1. update_document.lineItems uses the PROVEN costGroup-wrapper structure (verified against a live $8,219 document). One or more top-level entries with { _type:"costGroup", name:<group label>, lineItems:[<costItem children>] }. Each costItem child MUST include { _type:"costItem", jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice } — pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node. Discriminator is "costGroup"/"costItem" (NOT "newCostGroup"/"newCostItem"). jobCostItemId is the node's id — NOT sourceCostItemId, NOT organizationCostItemId.
+2. create_document.name MUST exactly match a JT TEMPLATE name: "Proposal" | "Selections" | "Change Order" | "Interior Scope of work proposal". Default "Proposal". The descriptive title (e.g. "Smith Family — 123 Main St — Interior Repaint Proposal") goes in 'subject', NEVER in 'name' — JT rejects non-template names.
 3. createDocument does NOT inherit the job's location. ALWAYS pass jobLocationName + jobLocationAddress (read from get_job_cost_items' job.location.name / job.location.address).
-4. dueDays XOR dueDate â€” never set both. dueDays defaults to 30; use dueDate (YYYY-MM-DD) when an absolute date is needed.
-5. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage). It is a decimal â€” 0 means no tax, 0.0825 = 8.25%.
-6. Document type is "customerOrder" for proposals (the enum also has bidRequest, customerInvoice, vendorBill, vendorOrder â€” don't use those here).
+4. dueDays XOR dueDate — never set both. dueDays defaults to 30; use dueDate (YYYY-MM-DD) when an absolute date is needed.
+5. taxRate defaults to 0 (Purple Painting proposals are typically tax-exempt at this stage). It is a decimal — 0 means no tax, 0.0825 = 8.25%.
+6. Document type is "customerOrder" for proposals (the enum also has bidRequest, customerInvoice, vendorBill, vendorOrder — don't use those here).
 7. description = scope of work (compose from payload.scope). footer = exclusions text (payload.exclusions).
-8. create_document REQUIRES: jobId, name, type, fromName, toName, taxRate. All required â€” don't omit any.
+8. create_document REQUIRES: jobId, name, type, fromName, toName, taxRate. All required — don't omit any.
 
 BUILD SEQUENCE
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-Stage A â€” Identify the preparer:
-1. The user's opening reply will name the preparer (default Kareem if unspecified â€” always confirm). Call find_user with that name. The proxy filters to @purplepainting.net non-machine users and returns matches with { name, emailAddress, phoneNumber }. If multiple match, ask the user to pick. Once chosen, use those exact values as fromName / fromEmailAddress / fromPhoneNumber.
+═══════════════════
+Stage A — Identify the preparer:
+1. The user's opening reply will name the preparer (default Kareem if unspecified — always confirm). Call find_user with that name. The proxy filters to @purplepainting.net non-machine users and returns matches with { name, emailAddress, phoneNumber }. If multiple match, ask the user to pick. Once chosen, use those exact values as fromName / fromEmailAddress / fromPhoneNumber.
 
-Stage B â€” Confirm the recipient:
+Stage B — Confirm the recipient:
 2. Default recipient = the customer's primary contact (from payload.customer or payload.recipient if present, otherwise ask the user for name + email). Confirm with the user, then use toName / toEmailAddress.
 
-Stage C â€” Fetch job context, then create the barebones document:
+Stage C — Fetch job context, then create the barebones document:
 3. Call get_job_cost_items with jobId FIRST. This returns BOTH the job's location and all cost-item nodes you'll need in Stage D. Remember job.location.name and job.location.address for the next step.
 4. Call create_document with ALL required fields PLUS:
-   - name: exactly "Proposal" (or another template name verbatim â€” see Rule 2). Do NOT put the customer/address here.
-   - subject: the descriptive title (e.g. "Smith Family â€” 123 Main St â€” Interior Repaint Proposal").
+   - name: exactly "Proposal" (or another template name verbatim — see Rule 2). Do NOT put the customer/address here.
+   - subject: the descriptive title (e.g. "Smith Family — 123 Main St — Interior Repaint Proposal").
    - type: "customerOrder"
    - fromName, fromEmailAddress, fromPhoneNumber (from find_user)
    - toName, toEmailAddress (recipient)
    - taxRate: 0
-   - dueDays: 30 (or dueDate if absolute â€” never both)
+   - dueDays: 30 (or dueDate if absolute — never both)
    - issueDate: today (YYYY-MM-DD) when known
    - jobLocationName: job.location.name from step 3
    - jobLocationAddress: job.location.address from step 3
@@ -2909,7 +2920,7 @@ Stage C â€” Fetch job context, then create the barebones document:
    - footer: composed exclusions text
    Capture createdDocument.id from the result.
 
-Stage D â€” Mirror the budget as line items (PROVEN structure):
+Stage D — Mirror the budget as line items (PROVEN structure):
 5. From the get_job_cost_items result you already have, build ONE costGroup wrapper containing every cost item as a costItem child, then call update_document with this lineItems array:
      lineItems: [
        {
@@ -2920,7 +2931,7 @@ Stage D â€” Mirror the budget as line items (PROVEN structure):
              _type: "costItem",
              jobCostItemId: <node.id>,
              name: <node.name>,
-             quantity: <node.quantity>,        // REAL number from the node (e.g. 396, 120) â€” not a formula
+             quantity: <node.quantity>,        // REAL number from the node (e.g. 396, 120) — not a formula
              costCodeId: <node.costCode.id>,
              costTypeId: <node.costType.id>,
              unitId: <node.unit.id>,
@@ -2931,18 +2942,18 @@ Stage D â€” Mirror the budget as line items (PROVEN structure):
          ],
        },
      ]
-   Every costItem child MUST carry the full field set above â€” omitting costCodeId/costTypeId/unitId/unitCost/unitPrice is what causes JT to show $0 or wrong codes on the document. The discriminators are exactly "costGroup" / "costItem", not "newCostGroup" / "newCostItem".
+   Every costItem child MUST carry the full field set above — omitting costCodeId/costTypeId/unitId/unitCost/unitPrice is what causes JT to show $0 or wrong codes on the document. The discriminators are exactly "costGroup" / "costItem", not "newCostGroup" / "newCostItem".
 
-Stage E â€” Conversational edits:
+Stage E — Conversational edits:
 5. Honor user-driven edits via update_document. Examples:
-   - "change the footer" â†’ update_document { id, footer: "<new text>" }
-   - "drop that line" â†’ update_document { id, lineItems: [<reduced list>] }
-   - "different preparer â€” Peter" â†’ re-run find_user("Peter"), then update_document { id, fromName, fromEmailAddress, fromPhoneNumber }
+   - "change the footer" → update_document { id, footer: "<new text>" }
+   - "drop that line" → update_document { id, lineItems: [<reduced list>] }
+   - "different preparer — Peter" → re-run find_user("Peter"), then update_document { id, fromName, fromEmailAddress, fromPhoneNumber }
 
-Stage F â€” Summary:
+Stage F — Summary:
 6. After the document is created and any edits applied, reply with EXACTLY this structure (no pipe "|" table syntax, no rehash):
 
-## âœ… Document Ready
+## ✅ Document Ready
 
 **Job:** <job name>
 **Document:** <document name>
@@ -2950,23 +2961,28 @@ Stage F â€” Summary:
 **Recipient:** <recipient name>
 
 **Line Items (<count>):**
-- <item name> â€” <quantity> @ <unitPrice>
-- <item name> â€” <quantity> @ <unitPrice>
+- <item name> — <quantity> @ <unitPrice>
+- <item name> — <quantity> @ <unitPrice>
 (one bullet per line item)
 
 **[Open document in JobTread](https://app.jobtread.com/documents/<documentId>)**
 
 BUILT BUDGET (from BuildChat)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════
 ${JSON.stringify(builtBudget || null, null, 2)}
 
 PAYLOAD (scope + exclusions + tier + line items)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════
 ${JSON.stringify(payload)}`;
   }
 
   function documentToApiMessages(history) {
-    const messages = history.slice(1).map((m) => ({ role: m.role, content: m.content }));
+    // Same user-first guard as buildToApiMessages — skip leading assistants
+    // so a user who types into step 5 without clicking Start Document still
+    // sends a valid request.
+    let firstUserIdx = 0;
+    while (firstUserIdx < history.length && history[firstUserIdx].role !== "user") firstUserIdx++;
+    const messages = history.slice(firstUserIdx).map((m) => ({ role: m.role, content: m.content }));
     if (messages.length === 0) return messages;
     const ctxLine = `[CURRENT DOCUMENT CONTEXT] ${JSON.stringify({
       documentId: documentContextRef.current.documentId,
@@ -3038,6 +3054,8 @@ ${JSON.stringify(payload)}`;
   }
 
   async function sendDocumentMessage(userText) {
+    // Auto-flip the Step 5 gate (same rationale as sendBuildMessage).
+    if (!documentStarted) setDocumentStarted(true);
     let history = [...chatMessages, { role: "user", content: userText, mode: "document" }];
     setChatMessages(history);
     const MAX_STEPS = 20;
@@ -3063,14 +3081,14 @@ ${JSON.stringify(payload)}`;
         history = [...history, { role: "user", content: toolResultBlocks, mode: "document" }];
         setChatMessages(history);
       }
-      setChatMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps â€” pausing. What would you like to do?", mode: "document" }]);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "Hit max steps — pausing. What would you like to do?", mode: "document" }]);
     } catch (e) {
       setChatError(e.message || "Something went wrong");
       setChatMessages((prev) => [...prev, { role: "assistant", content: `(Error: ${e.message})`, mode: "document" }]);
     }
   }
 
-  // Central send dispatcher â€” dispatches to the active mode's pipeline.
+  // Central send dispatcher — dispatches to the active mode's pipeline.
   async function sendUnifiedMessage() {
     const text = chatInputText.trim();
     if (!text || chatThinking || !activeChatMode) return;
@@ -3087,19 +3105,19 @@ ${JSON.stringify(payload)}`;
   }
 
   // Push the build opening line and flip the Start gate. Called from the
-  // "Start Build" button â€” synchronous so a fast typer can't race the
+  // "Start Build" button — synchronous so a fast typer can't race the
   // opening into the wrong position.
   function startBuild() {
     const p0 = buildPayload();
     const c = (p0?.customerName || "").trim();
     const a = (p0?.siteAddress || "").trim();
     const opening = c && a
-      ? `Ready to build for ${c} at ${a}. I'll search for the customer in JobTread first â€” if there's a match I'll use it, otherwise I'll create the customer and the job at that address. Anything to change before I start?`
+      ? `Ready to build for ${c} at ${a}. I'll search for the customer in JobTread first — if there's a match I'll use it, otherwise I'll create the customer and the job at that address. Anything to change before I start?`
       : c
-        ? `Ready to build for ${c}. The site address wasn't captured from the transcript â€” what's the job address?`
+        ? `Ready to build for ${c}. The site address wasn't captured from the transcript — what's the job address?`
         : a
-          ? `Ready to build at ${a}. The customer name wasn't captured from the transcript â€” what's the customer's name?`
-          : "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first â€” if not found, I'll create one along with the job.";
+          ? `Ready to build at ${a}. The customer name wasn't captured from the transcript — what's the customer's name?`
+          : "Ready to build this in JobTread. What's the customer name and job address? I'll search for an existing customer first — if not found, I'll create one along with the job.";
     setChatMessages((prev) => [...prev, { role: "assistant", content: opening, mode: "build" }]);
     setBuildStarted(true);
   }
@@ -3107,7 +3125,7 @@ ${JSON.stringify(payload)}`;
   function startDocument() {
     setChatMessages((prev) => [...prev, {
       role: "assistant",
-      content: "Ready to create the customer-facing proposal document. Who's preparing this one? Default is Kareem â€” say a different name if it's someone else (Peter, Lyric, etc.).",
+      content: "Ready to create the customer-facing proposal document. Who's preparing this one? Default is Kareem — say a different name if it's someone else (Peter, Lyric, etc.).",
       mode: "document",
     }]);
     setDocumentStarted(true);
@@ -3127,11 +3145,11 @@ ${JSON.stringify(payload)}`;
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 500, margin: 0, color: "#2C1654" }}>Job Walk â†’ Proposal</h1>
-          <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", margin: "4px 0 0" }}>Purple Painting Co. â€” combined estimating tool</p>
+          <h1 style={{ fontSize: 22, fontWeight: 500, margin: 0, color: "#2C1654" }}>Job Walk → Proposal</h1>
+          <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", margin: "4px 0 0" }}>Purple Painting Co. — combined estimating tool</p>
         </div>
         <button style={btn} onClick={() => setShowSettings(!showSettings)}>
-          {showSettings ? "â† Back" : "Settings"}
+          {showSettings ? "← Back" : "Settings"}
         </button>
       </div>
 
@@ -3170,9 +3188,9 @@ ${JSON.stringify(payload)}`;
             })()}
           </div>
 
-          {/* â”€â”€ Persistent unified chat (mounted ABOVE step content, never
+          {/* ── Persistent unified chat (mounted ABOVE step content, never
               unmounts, accumulates messages across steps). Dispatches to
-              clarify/build/document pipelines via activeChatMode. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              clarify/build/document pipelines via activeChatMode. ─────────── */}
           <div style={{
             border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))",
             borderRadius: 8,
@@ -3195,13 +3213,13 @@ ${JSON.stringify(payload)}`;
               <span>
                 {activeChatMode === "clarify"
                   ? (clarifyQueue.length > 0
-                      ? `Clarify â€” ${clarifyQueue.length} question${clarifyQueue.length === 1 ? "" : "s"} remaining`
-                      : "Clarify â€” refine items below as you go")
+                      ? `Clarify — ${clarifyQueue.length} question${clarifyQueue.length === 1 ? "" : "s"} remaining`
+                      : "Clarify — refine items below as you go")
                   : activeChatMode === "build"
                     ? "Building in JobTread"
                     : activeChatMode === "document"
                       ? "Creating document in JobTread"
-                      : "Chat (view only â€” go to Clarify, Build, or Document to send)"}
+                      : "Chat (view only — go to Clarify, Build, or Document to send)"}
               </span>
             </div>
 
@@ -3217,7 +3235,7 @@ ${JSON.stringify(payload)}`;
                 return <ChatBubble key={i} message={{ role: m.role, text }} />;
               })}
 
-              {/* Active clarify question â€” chips + Skip, rendered as the latest
+              {/* Active clarify question — chips + Skip, rendered as the latest
                   assistant card. Only visible when mode === 'clarify'. */}
               {activeChatMode === "clarify" && clarifyQueue[0] && (
                 <div>
@@ -3266,7 +3284,7 @@ ${JSON.stringify(payload)}`;
 
               {chatThinking && (
                 <div style={{ alignSelf: "flex-start", fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic", padding: "4px 8px" }}>
-                  Thinkingâ€¦
+                  Thinking…
                 </div>
               )}
             </div>
@@ -3280,12 +3298,12 @@ ${JSON.stringify(payload)}`;
                   disabled={chatThinking || !activeChatMode}
                   placeholder={
                     activeChatMode === "clarify"
-                      ? (clarifyQueue[0] ? "Type your answer (or tap a chip above)â€¦" : `Say anything â€” "all walls 2 coats", "remove dining room", "add a closet 6x4"`)
+                      ? (clarifyQueue[0] ? "Type your answer (or tap a chip above)…" : `Say anything — "all walls 2 coats", "remove dining room", "add a closet 6x4"`)
                       : activeChatMode === "build"
                         ? 'e.g. "Customer is Smith Family, job at 123 Oak Street"'
                         : activeChatMode === "document"
                           ? 'e.g. "Peter is preparing, send to the primary contact"'
-                          : "Chat is read-only here â€” open Clarify, Build, or Document to send."
+                          : "Chat is read-only here — open Clarify, Build, or Document to send."
                   }
                   style={{
                     flex: 1,
@@ -3325,19 +3343,19 @@ ${JSON.stringify(payload)}`;
             </div>
           </div>
 
-          {/* Step 1: Input (auto-detect â€” no mode picker)
-              â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-              File only        â†’ takeoff (deterministic XLSX parse)
-              File + text      â†’ takeoff + notes overlay (Haiku adjusts items)
-              Text only        â†’ classifier decides voice vs notes
-              Nothing          â†’ error
+          {/* Step 1: Input (auto-detect — no mode picker)
+              ─────────────────────────────────────────────
+              File only        → takeoff (deterministic XLSX parse)
+              File + text      → takeoff + notes overlay (Haiku adjusts items)
+              Text only        → classifier decides voice vs notes
+              Nothing          → error
           */}
           {step === 1 && (
             <div style={card}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 12px" }}>Input</h2>
 
               <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 14 }}>
-                Upload a digital takeoff, paste a job-walk transcript or estimator notes, or both. Mode is auto-detected â€” you can override after parsing.
+                Upload a digital takeoff, paste a job-walk transcript or estimator notes, or both. Mode is auto-detected — you can override after parsing.
               </p>
 
               <div style={{ display: "flex", gap: 12, alignItems: "stretch", flexWrap: "wrap", marginBottom: 8 }}>
@@ -3369,13 +3387,13 @@ ${JSON.stringify(payload)}`;
                     }}
                     style={{ display: "none" }}
                   />
-                  <div style={{ fontSize: 24, marginBottom: 6 }}>ðŸ“</div>
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>📐</div>
                   <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, textAlign: "center" }}>
                     {takeoffFile ? takeoffFile.name : "Click to upload takeoff .xlsx"}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", textAlign: "center" }}>
                     {takeoffFile
-                      ? `${(takeoffFile.size / 1024).toFixed(1)} KB â€” click to replace`
+                      ? `${(takeoffFile.size / 1024).toFixed(1)} KB — click to replace`
                       : "Optional. Purple Painting BoQ format."}
                   </div>
                   {takeoffFile && (
@@ -3413,9 +3431,9 @@ ${JSON.stringify(payload)}`;
                 >
                   {parsing
                     ? (takeoffFile
-                        ? (transcript.trim() ? "Parsing takeoff + overlayâ€¦" : "Reading spreadsheetâ€¦")
-                        : "Parsingâ€¦ (10â€“20 sec)")
-                    : "Parse â†’"}
+                        ? (transcript.trim() ? "Parsing takeoff + overlay…" : "Reading spreadsheet…")
+                        : "Parsing… (10–20 sec)")
+                    : "Parse →"}
                 </button>
                 {parsing && !takeoffFile && (
                   <div style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", fontStyle: "italic" }}>
@@ -3427,22 +3445,22 @@ ${JSON.stringify(payload)}`;
           )}
 
           {/* Step 2: Combined Clarify + Line Items
-              â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+              ─────────────────────────────────────────────
               Clarifications + tier + context flags live ABOVE the line items list.
               As clarifications are answered, the line items below update in real
-              time â€” same `rooms` state powers both, so the wiring is automatic.
+              time — same `rooms` state powers both, so the wiring is automatic.
 
               Customer name, address, email, phone are NOT collected here. Those
               are handled at the chat level when the payload is pasted.
           */}
           {step === 2 && (
             <div>
-              {/* Auto-detect banner â€” only shown for the text-only path */}
+              {/* Auto-detect banner — only shown for the text-only path */}
               {detection && (
                 <div style={{ ...card, background: "rgba(44, 22, 84, 0.05)", border: "0.5px solid #2C1654", marginBottom: 12 }}>
                   <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                     <div style={{ fontSize: 13, color: "#2C1654", flex: "1 1 auto" }}>
-                      <strong>Detected:</strong> {detection.mode === "voice" ? "Voice transcript" : "Estimator notes"} â€” <span style={{ opacity: 0.8 }}>{detection.rationale}</span>
+                      <strong>Detected:</strong> {detection.mode === "voice" ? "Voice transcript" : "Estimator notes"} — <span style={{ opacity: 0.8 }}>{detection.rationale}</span>
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ fontSize: 12, color: "var(--color-text-secondary, #666)" }}>Wrong? Re-parse as:</span>
@@ -3469,22 +3487,21 @@ ${JSON.stringify(payload)}`;
               {inputMode !== "takeoff" && takeoffWarnings.length > 0 && (
                 <div style={{ ...card, background: "rgba(199, 150, 62, 0.08)", border: "0.5px solid #C8963E" }}>
                   <div style={{ fontSize: 13, color: "#a70", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 16 }}>âš ï¸</span>
-                    <div>{takeoffWarnings.join(" Â· ")}</div>
+                    <span style={{ fontSize: 16 }}>⚠️</span>
+                    <div>{takeoffWarnings.join(" · ")}</div>
                   </div>
                 </div>
               )}
 
-              {/* â”€â”€ CLARIFICATIONS PANEL (voice / notes only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* ── JOB DETAILS PANEL (voice / notes only) ──────────────────────
+                  Identity + tier + context-flag inputs. The clarify chat itself
+                  lives in the persistent chat box above the step content — this
+                  panel is form fields only, no chat UI of any kind. */}
               {inputMode !== "takeoff" && (
                 <div style={card}>
-                  <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Clarify</h2>
-                  <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>
-                    Chat with the estimator to refine the items below â€” change coats, dimensions, add or remove rooms, anything.
-                    {clarifications.length > 0 && ` ${clarifications.length} item${clarifications.length === 1 ? "" : "s"} flagged by the parser; suggestions appear in the chat.`}
-                  </p>
+                  <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 12px" }}>Job Details</h2>
 
-                  {/* Customer / job identity â€” pre-filled from the parsed transcript,
+                  {/* Customer / job identity — pre-filled from the parsed transcript,
                       editable so the user can correct voice-transcription errors
                       (e.g. "Ardmore" vs "Artmore") BEFORE BuildChat picks them up. */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -3525,7 +3542,7 @@ ${JSON.stringify(payload)}`;
                     />
                   </div>
 
-                  {/* Pricing tier â€” needed in-artifact only because the Scope step
+                  {/* Pricing tier — needed in-artifact only because the Scope step
                       uses it to pick standard vs high-end prep wording. Chat-level
                       Claude will re-confirm the multiplier when applying pricing. */}
                   <div style={{ marginBottom: 16 }}>
@@ -3552,9 +3569,6 @@ ${JSON.stringify(payload)}`;
                       ))}
                     </div>
                   </div>
-
-                  {/* Clarify chat lives in the persistent chat box above the
-                      step content â€” no per-step mounting here anymore. */}
 
                   {/* Context flags */}
                   <div style={{ borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", paddingTop: 14 }}>
@@ -3584,7 +3598,7 @@ ${JSON.stringify(payload)}`;
                 </div>
               )}
 
-              {/* â”€â”€ LINE ITEMS (live-updated by clarifications above) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* ── LINE ITEMS (live-updated by clarifications above) ────────── */}
               {inputMode === "takeoff" ? (
                 // Takeoff mode: read-only confirmation table
                 <div style={card}>
@@ -3600,7 +3614,7 @@ ${JSON.stringify(payload)}`;
                     Parsed directly from your spreadsheet. Review and click Export when ready.
                     {takeoffWarnings.length > 0 && (
                       <span style={{ color: "var(--color-text-warning, #a70)", display: "block", marginTop: 4 }}>
-                        {takeoffWarnings.length} warning{takeoffWarnings.length === 1 ? "" : "s"}: {takeoffWarnings.join(" Â· ")}
+                        {takeoffWarnings.length} warning{takeoffWarnings.length === 1 ? "" : "s"}: {takeoffWarnings.join(" · ")}
                       </span>
                     )}
                   </p>
@@ -3620,12 +3634,12 @@ ${JSON.stringify(payload)}`;
               )}
 
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={btn} onClick={() => setStep(1)}>â† Back to Input</button>
+                <button style={btn} onClick={() => setStep(1)}>← Back to Input</button>
                 {inputMode === "takeoff" ? (
                   <button
                     style={btnPrimary}
                     onClick={() => {
-                      // Skip AI categorization entirely â€” pre-populate scope + exclusions
+                      // Skip AI categorization entirely — pre-populate scope + exclusions
                       // with the takeoff defaults. Build comes next; takeoff's Scope step
                       // is hidden, so the confirm gate (step 3) will jump straight to Export.
                       const universalSel = { "Per Plans and Specifications": true };
@@ -3639,7 +3653,7 @@ ${JSON.stringify(payload)}`;
                     }}
                     disabled={!rooms.length}
                   >
-                    Confirm â†’ Build â†’
+                    Confirm → Build →
                   </button>
                 ) : (
                   <button
@@ -3649,8 +3663,8 @@ ${JSON.stringify(payload)}`;
                     title={clarifyRemaining > 0 ? `Answer or skip ${clarifyRemaining} remaining clarification${clarifyRemaining === 1 ? "" : "s"} above first.` : undefined}
                   >
                     {clarifyRemaining > 0
-                      ? `Build Budget â†’ (${clarifyRemaining} left)`
-                      : "Build Budget â†’"}
+                      ? `Build Budget → (${clarifyRemaining} left)`
+                      : "Build Budget →"}
                   </button>
                 )}
               </div>
@@ -3672,7 +3686,7 @@ ${JSON.stringify(payload)}`;
 
               <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
 
-              {/* Confirm gate â€” feeds the in-memory snapshot into Scope (or jumps straight to Export for takeoff). */}
+              {/* Confirm gate — feeds the in-memory snapshot into Scope (or jumps straight to Export for takeoff). */}
               {!builtBudget ? (
                 <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", margin: 0 }}>
                   Build the budget above. Once it's done, you'll confirm it here before {inputMode === "takeoff" ? "exporting" : "building the scope"}.
@@ -3698,14 +3712,14 @@ ${JSON.stringify(payload)}`;
                     {categorizing
                       ? "AI categorizing..."
                       : inputMode === "takeoff"
-                        ? "âœ“ Budget looks good â€” Continue to Export"
-                        : "âœ“ Budget looks good â€” Build Scope"}
+                        ? "✓ Budget looks good — Continue to Export"
+                        : "✓ Budget looks good — Build Scope"}
                   </button>
                 </div>
               )}
 
               <div style={{ marginTop: 20 }}>
-                <button style={btn} onClick={() => setStep(2)}>â† Back</button>
+                <button style={btn} onClick={() => setStep(2)}>← Back</button>
               </div>
             </div>
           )}
@@ -3716,14 +3730,14 @@ ${JSON.stringify(payload)}`;
               <div style={card}>
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Scope of Work</h2>
                 <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>
-                  âœ… Recommended (pre-checked) Â· ðŸ’¡ Suggested (review) Â· ðŸ“š Library (expand to browse)
+                  ✅ Recommended (pre-checked) · 💡 Suggested (review) · 📚 Library (expand to browse)
                 </p>
 
                 {/* Universal */}
                 <ScopeSection
                   groupKey="_universal"
                   title="Universal Prep"
-                  icon="ðŸŒ"
+                  icon="🌐"
                   allItems={library.universal_prep[tierMeta.prepTier]}
                   categorization={aiCategorization.universal}
                   selections={scopeSelections["_universal"] || {}}
@@ -3754,7 +3768,7 @@ ${JSON.stringify(payload)}`;
 
               {/* Exclusions */}
               <div style={card}>
-                <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>ðŸ›¡ï¸ Exclusions</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 16px" }}>🛡️ Exclusions</h2>
                 <ExclusionSection
                   allItems={library.blanket_exclusions}
                   categorization={aiCategorization.exclusions}
@@ -3766,13 +3780,13 @@ ${JSON.stringify(payload)}`;
               </div>
 
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={btn} onClick={() => setStep(3)}>â† Back</button>
-                <button style={btnPrimary} onClick={() => setStep(5)}>Next: Export â†’</button>
+                <button style={btn} onClick={() => setStep(3)}>← Back</button>
+                <button style={btnPrimary} onClick={() => setStep(5)}>Next: Export →</button>
               </div>
             </div>
           )}
 
-          {/* Step 5: Export â€” DocumentChat panel + manual-copy fallback */}
+          {/* Step 5: Export — DocumentChat panel + manual-copy fallback */}
           {step === 5 && (
             <div style={card}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Create Proposal Document</h2>
@@ -3791,26 +3805,26 @@ ${JSON.stringify(payload)}`;
 
               <hr style={{ margin: "32px 0", border: "none", borderTop: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))" }} />
 
-              {/* Manual export fallback â€” kept available as an escape hatch. */}
+              {/* Manual export fallback — kept available as an escape hatch. */}
               <h2 style={{ fontSize: 16, fontWeight: 500, margin: "0 0 8px" }}>Manual Export (fallback)</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary, #666)", marginBottom: 16 }}>If the chat hits an issue, you can still copy the JSON payload and paste it into a separate chat.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
                 <button style={btnPrimary} onClick={copyPayload}>
-                  ðŸ“‹ Copy Full Payload (for chat)
+                  📋 Copy Full Payload (for chat)
                   {lastCopyResult?.label === "Full Payload" && Date.now() - lastCopyResult.at < 3000 && (
-                    <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.9 }}>âœ“ copied</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.9 }}>✓ copied</span>
                   )}
                 </button>
                 <button style={btn} onClick={copyScopeText}>
                   Copy Scope Text Only
                   {lastCopyResult?.label === "Scope Text" && Date.now() - lastCopyResult.at < 3000 && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-text-success, #2a7)" }}>âœ“ copied</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-text-success, #2a7)" }}>✓ copied</span>
                   )}
                 </button>
                 <button style={btn} onClick={copyExclusionText}>
                   Copy Exclusions Only
                   {lastCopyResult?.label === "Exclusions" && Date.now() - lastCopyResult.at < 3000 && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-text-success, #2a7)" }}>âœ“ copied</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-text-success, #2a7)" }}>✓ copied</span>
                   )}
                 </button>
               </div>
@@ -3820,11 +3834,11 @@ ${JSON.stringify(payload)}`;
                   {JSON.stringify(buildPayload(), null, 2)}
                 </pre>
               </details>
-              <button style={btn} onClick={() => setStep(inputMode === "takeoff" ? 3 : 4)}>â† Back to {inputMode === "takeoff" ? "Build" : "Scope"}</button>
+              <button style={btn} onClick={() => setStep(inputMode === "takeoff" ? 3 : 4)}>← Back to {inputMode === "takeoff" ? "Build" : "Scope"}</button>
             </div>
           )}
 
-          {/* Manual-copy modal â€” appears when clipboard write fails in iframe */}
+          {/* Manual-copy modal — appears when clipboard write fails in iframe */}
           {manualCopyText && (
             <ManualCopyModal
               text={manualCopyText.text}
@@ -3857,12 +3871,12 @@ function classifyItemSection(item) {
   if (sub === "exterior_stucco" || sub === "exterior_trim" || sub === "fence_deck") return "exterior";
   if (sub.startsWith("exterior")) return "exterior";
 
-  // Name/notes signals â€” "exterior" anywhere, or common exterior-only items
+  // Name/notes signals — "exterior" anywhere, or common exterior-only items
   const EXTERIOR_HINTS = /\b(exterior|outside|outdoor|stucco|fascia|eaves|soffit|fence|deck|patio|porch|garage|slider|sliding door|carport|trellis|exterior gate|roof|chimney)\b/;
   if (EXTERIOR_HINTS.test(combined)) return "exterior";
 
   // Metal is ambiguous; default interior unless above caught it
-  // Everything else (walls, ceilings, doors, baseboard, cabinets, trim) â†’ interior
+  // Everything else (walls, ceilings, doors, baseboard, cabinets, trim) → interior
   return "interior";
 }
 
@@ -3896,12 +3910,12 @@ function GroupedLineItemsEditor({ rooms, updateRoom, deleteRoom, addRoom, addSco
         </div>
       </div>
       <p style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", margin: "0 0 12px" }}>
-        <strong>Room</strong> = physical space Â· <strong>Scope</strong> = substrate bucket Â· <strong>T&M</strong> = hourly work
+        <strong>Room</strong> = physical space · <strong>Scope</strong> = substrate bucket · <strong>T&M</strong> = hourly work
       </p>
 
       {groups.interior.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <SectionHeader icon="ðŸ " title="Interior" count={groups.interior.length} color="#2C1654" />
+          <SectionHeader icon="🏠" title="Interior" count={groups.interior.length} color="#2C1654" />
           {groups.interior.map(({ idx, item }) => (
             <RoomCard key={idx} room={item} idx={idx} update={updateRoom} del={deleteRoom} />
           ))}
@@ -3910,7 +3924,7 @@ function GroupedLineItemsEditor({ rooms, updateRoom, deleteRoom, addRoom, addSco
 
       {groups.exterior.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <SectionHeader icon="ðŸ¡" title="Exterior" count={groups.exterior.length} color="#C8963E" />
+          <SectionHeader icon="🏡" title="Exterior" count={groups.exterior.length} color="#C8963E" />
           {groups.exterior.map(({ idx, item }) => (
             <RoomCard key={idx} room={item} idx={idx} update={updateRoom} del={deleteRoom} />
           ))}
@@ -3919,7 +3933,7 @@ function GroupedLineItemsEditor({ rooms, updateRoom, deleteRoom, addRoom, addSco
 
       {groups.tm.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <SectionHeader icon="â±ï¸" title="Time & Materials" count={groups.tm.length} color="#a70" />
+          <SectionHeader icon="⏱️" title="Time & Materials" count={groups.tm.length} color="#a70" />
           {groups.tm.map(({ idx, item }) => (
             <RoomCard key={idx} room={item} idx={idx} update={updateRoom} del={deleteRoom} />
           ))}
@@ -3967,11 +3981,11 @@ function TakeoffConfirmTable({ items, exclusions }) {
             {sectionItems.map((item, i) => (
               <tr key={i}>
                 <td style={cellStyle}>{item.name}</td>
-                <td style={cellStyle}>{item.substrate || "â€”"}</td>
-                <td style={{ ...cellStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.quantity?.toLocaleString() || "â€”"}</td>
-                <td style={cellStyle}>{item.unit || "â€”"}</td>
+                <td style={cellStyle}>{item.substrate || "—"}</td>
+                <td style={{ ...cellStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.quantity?.toLocaleString() || "—"}</td>
+                <td style={cellStyle}>{item.unit || "—"}</td>
                 <td style={cellStyle}>{item.coats || "2coats"}</td>
-                <td style={{ ...cellStyle, color: "var(--color-text-secondary, #666)", fontStyle: "italic" }}>{item._sourceSection || "â€”"}</td>
+                <td style={{ ...cellStyle, color: "var(--color-text-secondary, #666)", fontStyle: "italic" }}>{item._sourceSection || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -3989,10 +4003,10 @@ function TakeoffConfirmTable({ items, exclusions }) {
       {exclusions && exclusions.length > 0 && (
         <div style={{ marginTop: 12, padding: 12, background: "var(--color-background-secondary, #f3f3f0)", borderRadius: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-            ðŸ›¡ï¸ Exclusions from spreadsheet ({exclusions.length})
+            🛡️ Exclusions from spreadsheet ({exclusions.length})
           </div>
           {exclusions.map((e, i) => (
-            <div key={i} style={{ fontSize: 12, padding: "2px 0", color: "var(--color-text-secondary, #444)" }}>â€¢ {e}</div>
+            <div key={i} style={{ fontSize: 12, padding: "2px 0", color: "var(--color-text-secondary, #444)" }}>• {e}</div>
           ))}
         </div>
       )}
@@ -4017,7 +4031,7 @@ function RoomCard({ room, idx, update, del }) {
           <option value="tm">T&M</option>
         </select>
         <input value={room.name || ""} onChange={(e) => update(idx, "name", e.target.value)} style={{ flex: 1, padding: 6, fontSize: 14, fontWeight: 500, border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", borderRadius: 6, background: "transparent", color: "inherit", fontFamily: "inherit" }} />
-        <button onClick={() => del(idx)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 16, color: "var(--color-text-secondary, #666)" }}>âœ•</button>
+        <button onClick={() => del(idx)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 16, color: "var(--color-text-secondary, #666)" }}>✕</button>
       </div>
 
       {type === "room" && (
@@ -4118,7 +4132,7 @@ function RoomCard({ room, idx, update, del }) {
             <select value={room.category || "repairs"} onChange={(e) => update(idx, "category", e.target.value)} style={{ width: "100%", padding: 4, fontSize: 12, background: "transparent", color: "inherit", border: "0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.15))", borderRadius: 4 }}>
               {TM_CATEGORIES.map((c) => {
                 const tm = TM_CATALOG.find((t) => t.category === c) || TM_CATALOG.find((t) => t.codeName.toLowerCase().includes(c.replace("_", " ")));
-                return <option key={c} value={c}>{c} {tm ? `â†’ ${tm.code}` : ""}</option>;
+                return <option key={c} value={c}>{c} {tm ? `→ ${tm.code}` : ""}</option>;
               })}
             </select>
           </div>
@@ -4150,7 +4164,7 @@ function ScopeSection({ groupKey, title, icon, allItems, categorization, selecti
       {/* Recommended */}
       {recommended.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-success, #2a7)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>âœ… Recommended</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-success, #2a7)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>✅ Recommended</div>
           {recommended.map((item) => (
             <CheckboxRow key={item} item={item} checked={!!selections[item]} onChange={() => toggle(groupKey, item)} />
           ))}
@@ -4160,7 +4174,7 @@ function ScopeSection({ groupKey, title, icon, allItems, categorization, selecti
       {/* Suggested */}
       {suggested.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-warning, #a70)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>ðŸ’¡ Suggested</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-warning, #a70)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>💡 Suggested</div>
           {suggested.map((item) => (
             <CheckboxRow key={item} item={item} checked={!!selections[item]} onChange={() => toggle(groupKey, item)} reason={reasons[item]} />
           ))}
@@ -4170,7 +4184,7 @@ function ScopeSection({ groupKey, title, icon, allItems, categorization, selecti
       {/* Custom items already added */}
       {customItems.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-secondary, #666)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>âœï¸ Custom</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-secondary, #666)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>✏️ Custom</div>
           {customItems.map((item) => (
             <CheckboxRow key={item} item={item} checked={!!selections[item]} onChange={() => toggle(groupKey, item)} />
           ))}
@@ -4181,7 +4195,7 @@ function ScopeSection({ groupKey, title, icon, allItems, categorization, selecti
       {libraryItems.length > 0 && (
         <div>
           <button style={{ background: "transparent", border: "none", color: "var(--color-text-secondary, #666)", fontSize: 12, cursor: "pointer", padding: 4, fontFamily: "inherit" }} onClick={() => setShowLibrary(!showLibrary)}>
-            {showLibrary ? "â–¼" : "â–¶"} ðŸ“š Library ({libraryItems.length} more)
+            {showLibrary ? "▼" : "▶"} 📚 Library ({libraryItems.length} more)
           </button>
           {showLibrary && libraryItems.map((item) => (
             <CheckboxRow key={item} item={item} checked={!!selections[item]} onChange={() => toggle(groupKey, item)} />
@@ -4207,14 +4221,14 @@ function ExclusionSection({ allItems, categorization, selections, toggle, custom
   return (
     <div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-success, #2a7)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>âœ… Recommended</div>
+        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-success, #2a7)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>✅ Recommended</div>
         {recommended.map((item) => (
           <CheckboxRow key={item} item={item} checked={selections[item] !== false} onChange={() => toggle(item)} />
         ))}
       </div>
       {suggested.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-warning, #a70)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>ðŸ’¡ Suggested</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-warning, #a70)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>💡 Suggested</div>
           {suggested.map((item) => (
             <CheckboxRow key={item} item={item} checked={!!selections[item]} onChange={() => toggle(item)} reason={reasons[item]} />
           ))}
@@ -4222,7 +4236,7 @@ function ExclusionSection({ allItems, categorization, selections, toggle, custom
       )}
       {customItems.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-secondary, #666)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>âœï¸ Custom</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-secondary, #666)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>✏️ Custom</div>
           {customItems.map((item) => (
             <CheckboxRow key={item} item={item} checked={!!selections[item]} onChange={() => toggle(item)} />
           ))}
@@ -4315,8 +4329,8 @@ function SettingsPanel({ library, setLibrary }) {
           {Object.entries(library.cost_groups).map(([gk, grp]) => (
             <div key={gk} style={{ marginBottom: 6 }}>
               <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 2 }}>{grp.label}</div>
-              <SettingsButton current={editing} value={`${gk}:standard`} onClick={setEditing}>Â· Standard</SettingsButton>
-              <SettingsButton current={editing} value={`${gk}:high_end`} onClick={setEditing}>Â· High-End</SettingsButton>
+              <SettingsButton current={editing} value={`${gk}:standard`} onClick={setEditing}>· Standard</SettingsButton>
+              <SettingsButton current={editing} value={`${gk}:high_end`} onClick={setEditing}>· High-End</SettingsButton>
             </div>
           ))}
         </div>
@@ -4340,41 +4354,41 @@ function clarifyDimChips(room) {
   const name = (room?.name || "").toLowerCase();
   if (name.includes("bath")) {
     return [
-      { label: "5 Ã— 8 (small)", value: { length: 5, width: 8 } },
-      { label: "7 Ã— 10 (typical)", value: { length: 7, width: 10 } },
-      { label: "10 Ã— 12 (master)", value: { length: 10, width: 12 } },
+      { label: "5 × 8 (small)", value: { length: 5, width: 8 } },
+      { label: "7 × 10 (typical)", value: { length: 7, width: 10 } },
+      { label: "10 × 12 (master)", value: { length: 10, width: 12 } },
     ];
   }
   if (name.includes("closet")) {
     return [
-      { label: "4 Ã— 6 (reach-in)", value: { length: 4, width: 6 } },
-      { label: "6 Ã— 8 (walk-in)", value: { length: 6, width: 8 } },
+      { label: "4 × 6 (reach-in)", value: { length: 4, width: 6 } },
+      { label: "6 × 8 (walk-in)", value: { length: 6, width: 8 } },
     ];
   }
   if (name.includes("bed") || name.includes("master") || name.includes("guest")) {
     return [
-      { label: "10 Ã— 12", value: { length: 10, width: 12 } },
-      { label: "12 Ã— 14", value: { length: 12, width: 14 } },
-      { label: "14 Ã— 16 (primary)", value: { length: 14, width: 16 } },
+      { label: "10 × 12", value: { length: 10, width: 12 } },
+      { label: "12 × 14", value: { length: 12, width: 14 } },
+      { label: "14 × 16 (primary)", value: { length: 14, width: 16 } },
     ];
   }
   if (name.includes("kitchen") || name.includes("dining") || name.includes("living") || name.includes("family")) {
     return [
-      { label: "12 Ã— 14", value: { length: 12, width: 14 } },
-      { label: "14 Ã— 16", value: { length: 14, width: 16 } },
-      { label: "16 Ã— 20", value: { length: 16, width: 20 } },
+      { label: "12 × 14", value: { length: 12, width: 14 } },
+      { label: "14 × 16", value: { length: 14, width: 16 } },
+      { label: "16 × 20", value: { length: 16, width: 20 } },
     ];
   }
   return [
-    { label: "10 Ã— 12", value: { length: 10, width: 12 } },
-    { label: "12 Ã— 14", value: { length: 12, width: 14 } },
-    { label: "14 Ã— 16", value: { length: 14, width: 16 } },
+    { label: "10 × 12", value: { length: 10, width: 12 } },
+    { label: "12 × 14", value: { length: 12, width: 14 } },
+    { label: "14 × 16", value: { length: 14, width: 16 } },
   ];
 }
 
 // Build the ordered question queue: mandatory dim/door gaps first, then
 // parser hints. Each entry carries an optional predicate(rooms)=>bool that's
-// true while the question is still unanswered â€” used to silently drop items
+// true while the question is still unanswered — used to silently drop items
 // from the queue when a freeform answer resolved more than just the active
 // one. dim/door predicates match by room name (robust to index shifts from
 // adds/removes), parser hints have no predicate (stay until user touches them).
@@ -4382,7 +4396,7 @@ function buildClarifyQueue(rooms, hints) {
   const queue = [];
   // Track which rooms already have a client-side dim / door question so the
   // parser's hint-side equivalents can be deduped when we append them below
-  // (otherwise the room gets asked twice â€” once by us with a predicate that
+  // (otherwise the room gets asked twice — once by us with a predicate that
   // auto-drops on resolve, once by the parser without).
   const dimCovered = new Set();
   const doorCovered = new Set();
@@ -4394,7 +4408,7 @@ function buildClarifyQueue(rooms, hints) {
     dimCovered.add(name.toLowerCase());
     queue.push({
       id: `dim-${idx}-${name}`,
-      prompt: `"${name}" is missing length Ã— width â€” what are the dimensions?`,
+      prompt: `"${name}" is missing length × width — what are the dimensions?`,
       options: clarifyDimChips(r),
       itemIndex: idx,
       roomName: name,
@@ -4415,7 +4429,7 @@ function buildClarifyQueue(rooms, hints) {
     doorCovered.add(name.toLowerCase());
     queue.push({
       id: `door-${idx}-${name}`,
-      prompt: `"${name}" has doors enabled but no door count â€” how many?`,
+      prompt: `"${name}" has doors enabled but no door count — how many?`,
       options: [
         { label: "1 door", value: { doors: { count: 1 } } },
         { label: "2 doors", value: { doors: { count: 2 } } },
@@ -4437,7 +4451,7 @@ function buildClarifyQueue(rooms, hints) {
     // Skip parser hints that duplicate a client-side dim / door question for
     // the same room. The client-side ones carry predicates that auto-drop
     // when the room is resolved (even by a freeform answer that fills several
-    // rooms at once) â€” strictly better than the parser's predicate-less hint.
+    // rooms at once) — strictly better than the parser's predicate-less hint.
     if (h.field === "dimensions" || h.field === "doorCount") {
       const targetName = (h.itemIndex != null && rooms[h.itemIndex]?.name) || "";
       const covered = h.field === "dimensions" ? dimCovered : doorCovered;
@@ -4516,8 +4530,8 @@ const BUILD_CHAT_TOOLS = [
         customerId: { type: "string", description: "The customer's JobTread ID." },
         name: { type: "string", description: "Job name." },
         address: { type: "string", description: "Job site address." },
-        tier: { type: "string", description: "Pricing tier â€” 'standard' | 'production' | 'highend' | 'prevailing'. Maps to the Job Type custom field." },
-        bidOrigin: { type: "string", description: "How the bid came in â€” 'Job Walk' | 'Digital Takeoff' | 'Partner Work Order'. Maps to the How Did Bid Come In custom field." },
+        tier: { type: "string", description: "Pricing tier — 'standard' | 'production' | 'highend' | 'prevailing'. Maps to the Job Type custom field." },
+        bidOrigin: { type: "string", description: "How the bid came in — 'Job Walk' | 'Digital Takeoff' | 'Partner Work Order'. Maps to the How Did Bid Come In custom field." },
       },
       required: ["customerId", "name", "address"],
     },
@@ -4532,7 +4546,7 @@ const BUILD_CHAT_TOOLS = [
         name: { type: "string", description: "Cost group name." },
         parentCostGroupId: { type: "string", description: "Parent cost group ID. Omit for top-level groups." },
         quantityFormula: { type: "string", description: "Formula expression (e.g. '2 * (12 + 14) * 9' for room wall SF)." },
-        unitId: { type: "string", description: "Unit ID â€” see system prompt for SF/LF/EA/HR IDs." },
+        unitId: { type: "string", description: "Unit ID — see system prompt for SF/LF/EA/HR IDs." },
         quantity: { type: "number", description: "Literal numeric quantity if no formula." },
       },
       required: ["jobId", "name"],
@@ -4548,20 +4562,20 @@ const BUILD_CHAT_TOOLS = [
         costGroupId: { type: "string", description: "Parent cost group ID." },
         name: { type: "string", description: "Cost item name (e.g. 'Drywall Walls - Existing - 2-Coats')." },
         organizationCostItemId: { type: "string", description: "Org catalog item ID for the substrate+coats combo." },
-        costCodeId: { type: "string", description: "Cost code ID â€” the real cost-code JobTread id (the 'code_id' field from the catalog), e.g. 22PWmcdSP9GM. NOT the bare code number like '2000'." },
-        costTypeId: { type: "string", description: "Labor or Materials â€” see system prompt." },
+        costCodeId: { type: "string", description: "Cost code ID — the real cost-code JobTread id (the 'code_id' field from the catalog), e.g. 22PWmcdSP9GM. NOT the bare code number like '2000'." },
+        costTypeId: { type: "string", description: "Labor or Materials — see system prompt." },
         unitId: { type: "string", description: "Unit ID." },
         quantityFormula: { type: "string", description: "Dimensional formula for this item, e.g. '2 * (12 + 14) * 9' for walls or '12 * 14' for a ceiling. The item carries its own quantity; do not inherit from the parent." },
         quantity: { type: "number", description: "Literal numeric quantity if no formula." },
-        unitCost: { type: "number", description: "Per-unit cost (catalog default Ã— tier multiplier)." },
-        unitPrice: { type: "number", description: "Per-unit price (catalog default Ã— tier multiplier)." },
+        unitCost: { type: "number", description: "Per-unit cost (catalog default × tier multiplier)." },
+        unitPrice: { type: "number", description: "Per-unit price (catalog default × tier multiplier)." },
       },
       required: ["jobId", "costGroupId", "name"],
     },
   },
   {
     name: "get_catalog_prices",
-    description: "Look up the live unitCost and unitPrice for one or more org catalog items by their organizationCostItemId. Batch all IDs you need into a single call. Returns the catalog values â€” multiply each by the tier multiplier before writing onto a cost item.",
+    description: "Look up the live unitCost and unitPrice for one or more org catalog items by their organizationCostItemId. Batch all IDs you need into a single call. Returns the catalog values — multiply each by the tier multiplier before writing onto a cost item.",
     input_schema: {
       type: "object",
       properties: {
@@ -4600,7 +4614,7 @@ async function runSearchCatalog({ query, coats }) {
     .from("catalog_items")
     .select("id,name,code,code_id,code_name,cost_type_id,unit_id,unit_name,unit_cost,unit_price,substrate,condition,coats,kind");
   // Each word must match at least one of name / code_name / substrate.
-  // Chained .or() filters are AND'd together by PostgREST â€” mirrors the
+  // Chained .or() filters are AND'd together by PostgREST — mirrors the
   // tokenize-and-OR pattern in api/jobtread.js's nameLikeCondition.
   for (const w of (words.length ? words : [q])) {
     const esc = w.replace(/[%,()]/g, " ").trim();
@@ -4611,8 +4625,8 @@ async function runSearchCatalog({ query, coats }) {
   if (error || !data) return { matches: [] };
   let rows = data;
   if (coats) {
-    // Match on the two real dimensions the coat field encodes â€” coat count
-    // (1 vs 2) and whether it's primed â€” instead of fuzzy string containment.
+    // Match on the two real dimensions the coat field encodes — coat count
+    // (1 vs 2) and whether it's primed — instead of fuzzy string containment.
     // Resolves each tier to exactly one row and tolerates input variants
     // ("Prime + 2", "Prime+Paint:2-Coats", "2-Coats", "prime + paint : 2-coats").
     const feats = (s) => {
@@ -4665,7 +4679,7 @@ function buildChatDisplayText(m) {
 const DOCUMENT_CHAT_TOOLS = [
   {
     name: "find_user",
-    description: "Look up an internal Purple Painting team member by name fragment. Returns matching users with { name, emailAddress, phoneNumber } â€” use these as fromName / fromEmailAddress / fromPhoneNumber on create_document. The proxy filters to @purplepainting.net users and excludes machine accounts.",
+    description: "Look up an internal Purple Painting team member by name fragment. Returns matching users with { name, emailAddress, phoneNumber } — use these as fromName / fromEmailAddress / fromPhoneNumber on create_document. The proxy filters to @purplepainting.net users and excludes machine accounts.",
     input_schema: {
       type: "object",
       properties: {
@@ -4687,39 +4701,39 @@ const DOCUMENT_CHAT_TOOLS = [
   },
   {
     name: "create_document",
-    description: "Create a JobTread document. Barebones â€” line items are added afterwards via update_document. `name` MUST be one of JT's TEMPLATE names verbatim ('Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'); the descriptive title goes in `subject`. createDocument does NOT inherit the job's location â€” always pass jobLocationName + jobLocationAddress from get_job_cost_items' job.location. type is 'customerOrder' for proposals. dueDays XOR dueDate â€” never set both.",
+    description: "Create a JobTread document. Barebones — line items are added afterwards via update_document. `name` MUST be one of JT's TEMPLATE names verbatim ('Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'); the descriptive title goes in `subject`. createDocument does NOT inherit the job's location — always pass jobLocationName + jobLocationAddress from get_job_cost_items' job.location. type is 'customerOrder' for proposals. dueDays XOR dueDate — never set both.",
     input_schema: {
       type: "object",
       properties: {
         jobId: { type: "string", description: "The job's JobTread ID (from builtBudget.jobId)." },
-        name: { type: "string", description: "Document TEMPLATE name (must match a JT template verbatim): 'Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'. Default: 'Proposal'. Do NOT put the customer/address here â€” JT rejects non-template names." },
-        subject: { type: "string", description: "Descriptive document title shown to the customer (e.g. 'Smith Family â€” 123 Main St â€” Interior Repaint Proposal'). This is where the human-readable label goes, not `name`." },
+        name: { type: "string", description: "Document TEMPLATE name (must match a JT template verbatim): 'Proposal' | 'Selections' | 'Change Order' | 'Interior Scope of work proposal'. Default: 'Proposal'. Do NOT put the customer/address here — JT rejects non-template names." },
+        subject: { type: "string", description: "Descriptive document title shown to the customer (e.g. 'Smith Family — 123 Main St — Interior Repaint Proposal'). This is where the human-readable label goes, not `name`." },
         type: { type: "string", description: "Document type enum: 'bidRequest' | 'customerInvoice' | 'customerOrder' | 'vendorBill' | 'vendorOrder'. Use 'customerOrder' for proposals." },
         fromName: { type: "string", description: "Preparer's display name (the result of find_user)." },
-        toName: { type: "string", description: "Recipient's display name â€” typically the customer's primary contact." },
+        toName: { type: "string", description: "Recipient's display name — typically the customer's primary contact." },
         taxRate: { type: "number", description: "Sales tax rate as a decimal (0..1). Use 0 for paint proposals." },
-        description: { type: "string", description: "Scope-of-work text (â‰¤32768 chars). Goes into the document body." },
-        footer: { type: "string", description: "Exclusions text (â‰¤65536 chars). Goes at the bottom of the document." },
-        dueDays: { type: "number", description: "Days until the document is due (integer â‰¥ 0). Use 30 by default. XOR with dueDate â€” pick one." },
-        dueDate: { type: "string", description: "Absolute due date in ISO format YYYY-MM-DD. XOR with dueDays â€” pick one." },
+        description: { type: "string", description: "Scope-of-work text (≤32768 chars). Goes into the document body." },
+        footer: { type: "string", description: "Exclusions text (≤65536 chars). Goes at the bottom of the document." },
+        dueDays: { type: "number", description: "Days until the document is due (integer ≥ 0). Use 30 by default. XOR with dueDate — pick one." },
+        dueDate: { type: "string", description: "Absolute due date in ISO format YYYY-MM-DD. XOR with dueDays — pick one." },
         issueDate: { type: "string", description: "Date the document is issued, ISO YYYY-MM-DD. Default to today." },
-        jobLocationName: { type: "string", description: "Document location name â€” pass job.location.name from get_job_cost_items." },
-        jobLocationAddress: { type: "string", description: "Document location address â€” pass job.location.address from get_job_cost_items." },
+        jobLocationName: { type: "string", description: "Document location name — pass job.location.name from get_job_cost_items." },
+        jobLocationAddress: { type: "string", description: "Document location address — pass job.location.address from get_job_cost_items." },
         fromEmailAddress: { type: "string", description: "Preparer's email (from find_user)." },
         fromPhoneNumber: { type: "string", description: "Preparer's phone (from find_user, if present)." },
-        toEmailAddress: { type: "string", description: "Recipient's email â€” from the customer's primaryContact." },
+        toEmailAddress: { type: "string", description: "Recipient's email — from the customer's primaryContact." },
       },
       required: ["jobId", "name", "type", "fromName", "toName", "taxRate"],
     },
   },
   {
     name: "update_document",
-    description: "Update a JobTread document. lineItems use the PROVEN costGroup-wrapper structure (verified against a live $8,219 document): one or more top-level costGroup entries, each carrying costItem children with the full field set { _type:'costItem', jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice }. Discriminator is 'costGroup' / 'costItem' (NOT 'newCostGroup' / 'newCostItem'). Pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node's costCode.id / costType.id / unit.id / unitCost / unitPrice â€” leaving any of them out makes JT show $0 or wrong codes.",
+    description: "Update a JobTread document. lineItems use the PROVEN costGroup-wrapper structure (verified against a live $8,219 document): one or more top-level costGroup entries, each carrying costItem children with the full field set { _type:'costItem', jobCostItemId, name, quantity, costCodeId, costTypeId, unitId, unitCost, unitPrice }. Discriminator is 'costGroup' / 'costItem' (NOT 'newCostGroup' / 'newCostItem'). Pull costCodeId/costTypeId/unitId/unitCost/unitPrice from the matching get_job_cost_items node's costCode.id / costType.id / unit.id / unitCost / unitPrice — leaving any of them out makes JT show $0 or wrong codes.",
     input_schema: {
       type: "object",
       properties: {
         id: { type: "string", description: "The document's JobTread ID (from create_document's createdDocument.id)." },
-        name: { type: "string", description: "Updated document TEMPLATE name (same constraint as create_document â€” must match a JT template verbatim)." },
+        name: { type: "string", description: "Updated document TEMPLATE name (same constraint as create_document — must match a JT template verbatim)." },
         subject: { type: "string", description: "Updated descriptive subject." },
         fromName: { type: "string", description: "Updated preparer name." },
         toName: { type: "string", description: "Updated recipient name." },
@@ -4736,7 +4750,7 @@ const DOCUMENT_CHAT_TOOLS = [
         toEmailAddress: { type: "string", description: "Updated recipient email." },
         lineItems: {
           type: "array",
-          description: "PROVEN costGroup-wrapper structure. Each entry is a costGroup containing costItem children â€” see this tool's top-level description for the exact field set.",
+          description: "PROVEN costGroup-wrapper structure. Each entry is a costGroup containing costItem children — see this tool's top-level description for the exact field set.",
           items: {
             type: "object",
             description: "A costGroup wrapper. _type must be 'costGroup'.",
@@ -4776,7 +4790,7 @@ const DOCUMENT_CHAT_TOOLS = [
 // Compact one-line representation of a line item for prompt context.
 function formatItemDigest(r, idx) {
   if (r.type === "tm") return `[${idx}] T&M "${r.name}" ${r.hours || 0}hr (${r.category})`;
-  if (r.type === "scope") return `[${idx}] scope "${r.name}" â€” ${r.substrate} ${r.quantity}${r.unit} ${r.coats || "2coats"}`;
+  if (r.type === "scope") return `[${idx}] scope "${r.name}" — ${r.substrate} ${r.quantity}${r.unit} ${r.coats || "2coats"}`;
   // room
   const subs = [];
   if (r.walls?.enabled !== false) subs.push(`walls:${r.walls?.coats || "2coats"}`);
@@ -4837,7 +4851,7 @@ function ManualCopyModal({ text, label, onClose }) {
           </button>
         </div>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary, #666)", margin: 0 }}>
-          The clipboard isn't accessible from inside this artifact's iframe â€” common in sandboxed environments. The text is selected below â€” press <strong>Cmd+C</strong> (Mac) or <strong>Ctrl+C</strong> (Windows) to copy it.
+          The clipboard isn't accessible from inside this artifact's iframe — common in sandboxed environments. The text is selected below — press <strong>Cmd+C</strong> (Mac) or <strong>Ctrl+C</strong> (Windows) to copy it.
         </p>
         <textarea
           ref={taRef}
@@ -4920,9 +4934,9 @@ function ChatBubble({ message }) {
 }
 
 // Parse a freeform custom answer and turn it into a structured patch.
-// e.g. "22 LF" â†’ { quantity: 22, unit: "LF" }
-//      "2 coats" â†’ { coats: "2coats" }
-//      "20 Ã— 14 Ã— 9" â†’ { length: 20, width: 14, height: 9 }
+// e.g. "22 LF" → { quantity: 22, unit: "LF" }
+//      "2 coats" → { coats: "2coats" }
+//      "20 × 14 × 9" → { length: 20, width: 14, height: 9 }
 function parseCustomAnswer(field, text) {
   const lower = text.toLowerCase();
   const patch = {};
@@ -4939,8 +4953,8 @@ function parseCustomAnswer(field, text) {
   else if (lower.match(/\b2\s*coats?\b/) || lower.includes("color change")) patch.coats = "2coats";
   else if (lower.match(/\b1\s*coats?\b/) || lower.includes("refresh") || lower.includes("recoat")) patch.coats = "1coat";
 
-  // Dimensions: "20 Ã— 14 Ã— 9" or "20x14x9" or "20 by 14 by 9"
-  const dimMatch = text.match(/(\d+(?:\.\d+)?)\s*[Ã—x\*]\s*(\d+(?:\.\d+)?)(?:\s*[Ã—x\*]\s*(\d+(?:\.\d+)?))?/i);
+  // Dimensions: "20 × 14 × 9" or "20x14x9" or "20 by 14 by 9"
+  const dimMatch = text.match(/(\d+(?:\.\d+)?)\s*[×x\*]\s*(\d+(?:\.\d+)?)(?:\s*[×x\*]\s*(\d+(?:\.\d+)?))?/i);
   if (dimMatch) {
     patch.length = parseFloat(dimMatch[1]);
     patch.width = parseFloat(dimMatch[2]);
