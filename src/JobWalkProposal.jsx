@@ -343,7 +343,15 @@ async function callClaude({ model, maxTokens, prompt, timeoutMs = 60000, label =
     });
 
     if (!response.ok) {
+      // Anthropic returns 529 with { type: "overloaded_error" } when capacity
+      // is hit. The raw JSON body is useless to the end user — substitute a
+      // clean message so parseTranscript's "Parse failed: ..." display shows
+      // something actionable. 429 is the rate-limit equivalent; treat the
+      // same since the user's recourse (wait + retry) is identical.
       const errText = await response.text().catch(() => "");
+      if (response.status === 529 || response.status === 429) {
+        throw new Error("Anthropic's API is currently overloaded — wait a moment and try again.");
+      }
       throw new Error(`${label} HTTP ${response.status}: ${errText.slice(0, 200)}`);
     }
 
